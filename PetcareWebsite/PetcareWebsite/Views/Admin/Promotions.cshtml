@@ -1,0 +1,143 @@
+@model PetcareWebsite.ViewModels.AdminPromotionsViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Promotions";
+    ViewData["AdminTitle"] = "Quản lý khuyến mãi";
+    ViewData["AdminSubtitle"] = "Tạo mã giảm giá và kiểm soát thời hạn áp dụng cho hóa đơn chưa thanh toán.";
+    var now = DateTime.Now;
+}
+
+@functions {
+    private static string StatusText(PetcareWebsite.Models.Promotion promotion, DateTime now)
+    {
+        if (promotion.IsActive != true) return "Tạm ngừng";
+        if (promotion.StartDate > now) return "Sắp diễn ra";
+        if (promotion.EndDate < now) return "Đã kết thúc";
+        return "Đang áp dụng";
+    }
+
+    private static string StatusClass(PetcareWebsite.Models.Promotion promotion, DateTime now)
+    {
+        if (promotion.IsActive != true) return "paused";
+        if (promotion.StartDate > now) return "scheduled";
+        if (promotion.EndDate < now) return "ended";
+        return "running";
+    }
+
+    private static string DiscountText(PetcareWebsite.Models.Promotion promotion)
+    {
+        return promotion.DiscountType == "Percentage"
+            ? $"{promotion.DiscountValue:N0}%"
+            : $"{promotion.DiscountValue:N0} đ";
+    }
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/promotions.css" asp-append-version="true" />
+}
+
+<div class="page-command">
+    <a class="btn-create" href="@Url.Action("CreatePromotion", "Admin")">
+        <i class="fas fa-tag"></i> Thêm mã khuyến mãi
+    </a>
+</div>
+
+<div class="promotion-summary">
+    <a class="admin-panel summary-item" href="@Url.Action("Promotions", "Admin")">
+        <span>Tất cả mã</span><strong>@Model.TotalCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Promotions", "Admin", new { status = "Running" })">
+        <span>Đang áp dụng</span><strong>@Model.RunningCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Promotions", "Admin", new { status = "Scheduled" })">
+        <span>Sắp diễn ra</span><strong>@Model.ScheduledCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Promotions", "Admin", new { status = "Ended" })">
+        <span>Đã kết thúc</span><strong>@Model.EndedCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Promotions", "Admin", new { status = "Inactive" })">
+        <span>Tạm ngừng</span><strong>@Model.InactiveCount</strong>
+    </a>
+</div>
+
+<div class="admin-panel">
+    <form method="get" action="@Url.Action("Promotions", "Admin")" class="filter-bar">
+        <input class="form-control" type="search" name="search" value="@Model.Search" placeholder="Tìm mã khuyến mãi hoặc loại giảm giá">
+        <select class="form-select promotion-status-filter" name="status">
+            <option value="">Tất cả trạng thái</option>
+            <option value="Running" selected="@(Model.Status == "Running" ? "selected" : null)">Đang áp dụng</option>
+            <option value="Scheduled" selected="@(Model.Status == "Scheduled" ? "selected" : null)">Sắp diễn ra</option>
+            <option value="Ended" selected="@(Model.Status == "Ended" ? "selected" : null)">Đã kết thúc</option>
+            <option value="Inactive" selected="@(Model.Status == "Inactive" ? "selected" : null)">Tạm ngừng</option>
+        </select>
+        <button class="btn-filter" type="submit"><i class="fas fa-magnifying-glass me-2"></i>Lọc</button>
+        <a class="clear-link" href="@Url.Action("Promotions", "Admin")">Xóa lọc</a>
+    </form>
+
+    @if (!Model.Promotions.Any())
+    {
+        <div class="empty-state">
+            <i class="fas fa-tags fs-2 mb-3 d-block"></i>
+            Chưa có mã khuyến mãi phù hợp.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table promotion-table">
+                <thead>
+                    <tr>
+                        <th>Mã khuyến mãi</th>
+                        <th>Giảm giá</th>
+                        <th>Điều kiện</th>
+                        <th>Thời hạn</th>
+                        <th>Hóa đơn dùng mã</th>
+                        <th>Trạng thái</th>
+                        <th>Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var promotion in Model.Promotions)
+                    {
+                        var isActive = promotion.IsActive == true;
+                        <tr>
+                            <td><span class="promo-code">@promotion.PromoCode</span></td>
+                            <td>
+                                <span class="discount">@DiscountText(promotion)</span>
+                                @if (promotion.DiscountType == "Percentage" && (promotion.MaxDiscount ?? 0) > 0)
+                                {
+                                    <div class="muted-line">Tối đa @promotion.MaxDiscount?.ToString("N0") đ</div>
+                                }
+                            </td>
+                            <td>
+                                <div class="muted-line">Đơn tối thiểu</div>
+                                <strong>@((promotion.MinOrderValue ?? 0).ToString("N0")) đ</strong>
+                            </td>
+                            <td>
+                                <div>@promotion.StartDate.ToString("dd/MM/yyyy HH:mm")</div>
+                                <div class="muted-line">đến @promotion.EndDate.ToString("dd/MM/yyyy HH:mm")</div>
+                            </td>
+                            <td>@promotion.Invoices.Count hóa đơn</td>
+                            <td><span class="state @StatusClass(promotion, now)">@StatusText(promotion, now)</span></td>
+                            <td>
+                                <div class="actions">
+                                    <a class="action-link" href="@Url.Action("EditPromotion", "Admin", new { id = promotion.PromotionId })">
+                                        <i class="far fa-pen-to-square"></i> Sửa
+                                    </a>
+                                    <form method="post" action="@Url.Action("TogglePromotionStatus", "Admin")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="promotionId" value="@promotion.PromotionId">
+                                        <button class="toggle-button @(isActive ? "stop" : "start")" type="submit">
+                                            @(isActive ? "Tạm ngừng" : "Mở lại")
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

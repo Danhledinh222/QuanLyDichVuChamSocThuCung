@@ -1,0 +1,109 @@
+.editor-wrap {
+            max-width: 860px;
+            margin: 0 auto;
+        }
+
+        .editor-panel {
+            padding: 28px;
+        }
+
+        .owner-line {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding: 15px 17px;
+            border: 1px solid #DBEAFE;
+            border-radius: 8px;
+            color: #1E3A8A;
+            background: #EFF6FF;
+            font-weight: 750;
+        }
+
+        .owner-line i {
+            color: var(--admin-blue);
+            font-size: 1.05rem;
+        }
+
+        .form-label {
+            margin-bottom: 8px;
+            color: #374151;
+            font-size: 0.86rem;
+            font-weight: 800;
+        }
+
+        .form-control,
+        .form-select {
+            min-height: 50px;
+            border-color: var(--admin-line);
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        textarea.form-control {
+            min-height: 115px;
+            resize: vertical;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--admin-blue);
+            box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.12);
+        }
+
+        .field-validation-error {
+            display: block;
+            margin-top: 7px;
+            color: #DC2626;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .validation-summary-errors {
+            margin-bottom: 20px;
+            padding: 14px 18px;
+            border: 1px solid #FECACA;
+            border-radius: 8px;
+            color: #B91C1C;
+            background: #FEF2F2;
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        .validation-summary-errors ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .editor-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 25px;
+            padding-top: 23px;
+            border-top: 1px solid var(--admin-line);
+        }
+
+        .btn-cancel,
+        .btn-save {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            height: 48px;
+            padding: 0 22px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 800;
+        }
+
+        .btn-cancel {
+            border: 1px solid var(--admin-line);
+            color: var(--admin-ink);
+            background: #fff;
+        }
+
+        .btn-save {
+            border: 0;
+            color: #fff;
+            background: var(--admin-blue);
+        }

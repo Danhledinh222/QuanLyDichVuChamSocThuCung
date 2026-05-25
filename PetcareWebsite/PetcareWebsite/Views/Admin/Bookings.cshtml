@@ -1,0 +1,234 @@
+@model PetcareWebsite.ViewModels.AdminBookingsViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Bookings";
+    ViewData["AdminTitle"] = "Quản lý lịch hẹn";
+    ViewData["AdminSubtitle"] = "Phân công nhân viên, xác nhận, bắt đầu thực hiện, hoàn thành hoặc hủy lịch dịch vụ.";
+}
+
+@functions {
+    private static string StatusText(int statusId)
+    {
+        return statusId switch
+        {
+            1 => "Chờ xác nhận",
+            2 => "Đã xác nhận",
+            3 => "Đã hoàn thành",
+            4 => "Đã hủy",
+            5 => "Đã hết hạn",
+            6 => "Đang thực hiện",
+            _ => "Không xác định"
+        };
+    }
+
+    private static string StatusClass(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "status-confirmed",
+            3 => "status-completed",
+            4 => "status-cancelled",
+            5 => "status-expired",
+            6 => "status-progress",
+            _ => "status-pending"
+        };
+    }
+
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/bookings.css" asp-append-version="true" />
+}
+
+<div class="page-command">
+    <a class="btn-create" href="@Url.Action("CreateBooking", "Admin")">
+        <i class="fas fa-calendar-plus"></i> Thêm lịch hẹn mới
+    </a>
+</div>
+
+<div class="summary-grid">
+    <a class="admin-panel summary-card text-decoration-none text-dark" href="@Url.Action("Bookings", "Admin")">
+        <span>Tất cả</span><strong>@Model.TotalCount</strong>
+    </a>
+    <a class="admin-panel summary-card text-decoration-none text-dark" href="@Url.Action("Bookings", "Admin", new { statusId = 1 })">
+        <span>Chờ xử lý</span><strong>@Model.PendingCount</strong>
+    </a>
+    <a class="admin-panel summary-card text-decoration-none text-dark" href="@Url.Action("Bookings", "Admin", new { statusId = 3 })">
+        <span>Hoàn thành</span><strong>@Model.CompletedCount</strong>
+    </a>
+    <a class="admin-panel summary-card text-decoration-none text-dark" href="@Url.Action("Bookings", "Admin", new { statusId = 4 })">
+        <span>Đã hủy</span><strong>@Model.CancelledCount</strong>
+    </a>
+    <a class="admin-panel summary-card text-decoration-none text-dark" href="@Url.Action("Bookings", "Admin", new { statusId = 5 })">
+        <span>Hết hạn</span><strong>@Model.ExpiredCount</strong>
+    </a>
+    <a class="admin-panel summary-card text-decoration-none text-dark" href="@Url.Action("Bookings", "Admin", new { statusId = 6 })">
+        <span>Đang thực hiện</span><strong>@Model.InProgressCount</strong>
+    </a>
+</div>
+
+<div class="admin-panel booking-panel">
+    <form method="get" action="@Url.Action("Bookings", "Admin")" class="filter-bar">
+        <input class="form-control search-input" type="search" name="search" value="@Model.Search" placeholder="Tìm mã đặt lịch, khách hàng hoặc số điện thoại">
+        <select class="form-select booking-status-filter" name="statusId">
+            <option value="">Tất cả trạng thái</option>
+            <option value="1" selected="@(Model.StatusId == 1 ? "selected" : null)">Chờ xác nhận</option>
+            <option value="2" selected="@(Model.StatusId == 2 ? "selected" : null)">Đã xác nhận</option>
+            <option value="3" selected="@(Model.StatusId == 3 ? "selected" : null)">Đã hoàn thành</option>
+            <option value="4" selected="@(Model.StatusId == 4 ? "selected" : null)">Đã hủy</option>
+            <option value="5" selected="@(Model.StatusId == 5 ? "selected" : null)">Đã hết hạn</option>
+            <option value="6" selected="@(Model.StatusId == 6 ? "selected" : null)">Đang thực hiện</option>
+        </select>
+        <button class="btn-filter" type="submit"><i class="fas fa-magnifying-glass me-2"></i>Lọc</button>
+        <a class="clear-link" href="@Url.Action("Bookings", "Admin")">Xóa lọc</a>
+    </form>
+
+    @if (!Model.Bookings.Any())
+    {
+        <div class="empty-state">
+            <i class="far fa-calendar-xmark fs-2 mb-3 d-block"></i>
+            Không có lịch hẹn phù hợp.
+        </div>
+    }
+    else
+    {
+        <div class="booking-scroll" tabindex="0" aria-label="Danh sách lịch hẹn có thể cuộn ngang">
+            <table class="table booking-table">
+                <colgroup>
+                    <col class="column-booking">
+                    <col class="column-customer">
+                    <col class="column-service">
+                    <col class="column-employee">
+                    <col class="column-time">
+                    <col class="column-value">
+                    <col class="column-status">
+                    <col class="column-actions">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Lịch hẹn</th>
+                        <th>Khách hàng</th>
+                        <th>Dịch vụ</th>
+                        <th>Nhân viên</th>
+                        <th>Thời gian</th>
+                        <th>Giá trị</th>
+                        <th>Trạng thái</th>
+                        <th>Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var booking in Model.Bookings)
+                    {
+                        var detail = booking.BookingDetails.FirstOrDefault();
+                        var amount = booking.Invoice != null
+                            ? (booking.Invoice.TotalAmount ?? 0) - (booking.Invoice.DiscountAmount ?? 0)
+                            : booking.BookingDetails.Sum(item => item.ActualPrice);
+                        var assignedEmployee = detail?.BookingDetailEmployees.FirstOrDefault()?.Employee;
+                        <tr>
+                            <td>
+                                <div class="booking-code">@booking.BookingCode</div>
+                                <div class="muted-line">#@booking.BookingId</div>
+                            </td>
+                            <td>
+                                <strong>@booking.Customer.FullName</strong>
+                                <div class="muted-line">@booking.Customer.PhoneNumber</div>
+                            </td>
+                            <td>
+                                <strong>@(detail?.Service?.ServiceName ?? "Dịch vụ")</strong>
+                                <div class="muted-line">@(detail?.Pet?.Name ?? "Thú cưng")</div>
+                            </td>
+                            <td>
+                                @if (assignedEmployee != null)
+                                {
+                                    <div class="assigned-name">@assignedEmployee.FullName</div>
+                                    <div class="muted-line">@assignedEmployee.Role?.RoleName</div>
+                                }
+                                else
+                                {
+                                    <span class="unassigned">Chưa phân công</span>
+                                }
+                            </td>
+                            <td>
+                                @booking.BookingDate.ToString("dd/MM/yyyy HH:mm")
+                                @if (detail?.StartTime != null)
+                                {
+                                    <div class="muted-line">Bắt đầu: @detail.StartTime.Value.ToString("HH:mm dd/MM")</div>
+                                }
+                                @if (detail?.EndTime != null)
+                                {
+                                    <div class="muted-line">Kết thúc: @detail.EndTime.Value.ToString("HH:mm dd/MM")</div>
+                                }
+                            </td>
+                            <td><span class="price">@amount.ToString("N0") đ</span></td>
+                            <td><span class="badge-soft @StatusClass(booking.StatusId)">@StatusText(booking.StatusId)</span></td>
+                            <td>
+                                @if (booking.StatusId == 3 || booking.StatusId == 4)
+                                {
+                                    <span class="locked-note">Đã chốt</span>
+                                }
+                                else if (booking.StatusId == 5)
+                                {
+                                    <a class="edit-action" href="@Url.Action("EditBooking", "Admin", new { id = booking.BookingId })" title="Dời lịch hẹn">
+                                        <i class="far fa-pen-to-square"></i> Dời lịch
+                                    </a>
+                                }
+                                else
+                                {
+                                    <div class="row-actions">
+                                        @if (booking.StatusId != 6)
+                                        {
+                                            <a class="edit-action" href="@Url.Action("EditBooking", "Admin", new { id = booking.BookingId })" title="Cập nhật lịch hẹn" aria-label="Cập nhật lịch hẹn">
+                                                <i class="far fa-pen-to-square"></i>
+                                            </a>
+                                        }
+                                        <form class="status-form" method="post" action="@Url.Action("UpdateBookingStatus", "Admin")">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="bookingId" value="@booking.BookingId">
+                                            <label class="action-field employee-field">
+                                                <span>Nhân viên phụ trách</span>
+                                                <select name="assignedEmployeeId" disabled="@(booking.StatusId == 6 ? "disabled" : null)">
+                                                    <option value="">Chưa phân công</option>
+                                                    @foreach (var employee in Model.Employees)
+                                                    {
+                                                        <option value="@employee.EmployeeId" selected="@(assignedEmployee?.EmployeeId == employee.EmployeeId ? "selected" : null)">
+                                                            @employee.FullName - @employee.Role.RoleName
+                                                        </option>
+                                                    }
+                                                </select>
+                                                @if (booking.StatusId == 6 && assignedEmployee != null)
+                                                {
+                                                    <input type="hidden" name="assignedEmployeeId" value="@assignedEmployee.EmployeeId">
+                                                }
+                                            </label>
+                                            <label class="action-field">
+                                                <span>Chuyển trạng thái</span>
+                                                <select name="statusId">
+                                                    <option value="">Chỉ lưu phân công</option>
+                                                    @if (booking.StatusId == 1)
+                                                    {
+                                                        <option value="2">Xác nhận</option>
+                                                    }
+                                                    @if (booking.StatusId == 2)
+                                                    {
+                                                        <option value="6">Bắt đầu thực hiện</option>
+                                                    }
+                                                    @if (booking.StatusId == 6)
+                                                    {
+                                                        <option value="3">Hoàn thành</option>
+                                                    }
+                                                    <option value="4">Hủy lịch</option>
+                                                </select>
+                                            </label>
+                                            <button type="submit" title="Lưu xử lý"><i class="fas fa-check"></i></button>
+                                        </form>
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

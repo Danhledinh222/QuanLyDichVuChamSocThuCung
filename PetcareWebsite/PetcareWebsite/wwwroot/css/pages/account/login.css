@@ -1,0 +1,176 @@
+/* [Giữ nguyên phần CSS thẩm mỹ của sếp đã gửi ở trên] */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #FAFAF7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-wrapper {
+            display: flex;
+            width: 1000px;
+            max-width: 100%;
+            background-color: #FFFFFF;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.04);
+            overflow: hidden;
+            animation: fadeUp 0.6s ease-out;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            width: 50%;
+        }
+
+        .left-text {
+            background-color: #10B981;
+            padding: 50px 40px;
+            color: #FFFFFF;
+        }
+
+            .left-text h2 {
+                font-size: 2.2rem;
+                font-weight: 800;
+                line-height: 1.2;
+                margin-bottom: 15px;
+            }
+
+        .left-image {
+            flex: 1;
+            background-image: url('/images/auth/login-pet.jpg');
+            background-size: cover;
+            background-position: center;
+            min-height: 300px;
+        }
+
+        .login-right {
+            flex: 1;
+            padding: 60px 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .form-header {
+            margin-bottom: 40px;
+        }
+
+            .form-header h3 {
+                font-size: 1.8rem;
+                font-weight: 800;
+                color: #111827;
+            }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+            .input-group label {
+                display: block;
+                font-size: 0.9rem;
+                font-weight: 700;
+                color: #111827;
+                margin-bottom: 10px;
+            }
+
+            .input-group input {
+                width: 100%;
+                padding: 14px 18px;
+                border-radius: 12px;
+                border: 1px solid #E5E7EB;
+                background-color: #F9FAFB;
+                transition: all 0.3s;
+            }
+
+                .input-group input:focus {
+                    border-color: #10B981;
+                    background-color: #fff;
+                    outline: none;
+                    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+                }
+
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+
+        .btn-submit {
+            width: 100%;
+            background-color: #14B8A6;
+            color: #fff;
+            border: none;
+            padding: 16px;
+            border-radius: 50px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+            .btn-submit:hover {
+                background-color: #0D9488;
+                transform: translateY(-2px);
+            }
+
+        .alert-error {
+            background-color: #FEE2E2;
+            color: #DC2626;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-align: center;
+        }
+.login-success {
+    background-color: #D1FAE5;
+    color: #065F46;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.remember-option {
+    cursor: pointer;
+}
+
+.forgot-link,
+.register-link {
+    color: #10B981;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.login-footer {
+    margin-top: 30px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #6B7280;
+}

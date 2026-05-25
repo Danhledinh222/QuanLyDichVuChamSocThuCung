@@ -1,0 +1,379 @@
+@model PetcareWebsite.ViewModels.AdminBookingEditorViewModel
+@using System.Globalization
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Bookings";
+    ViewData["AdminTitle"] = Model.IsEditing ? "Sửa lịch hẹn" : "Thêm lịch hẹn mới";
+    ViewData["AdminSubtitle"] = Model.IsEditing
+        ? $"Cập nhật thông tin cho lịch {Model.BookingCode}."
+        : "Tạo lịch cho khách có hồ sơ hoặc tiếp nhận khách vãng lai trực tiếp.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/bookingform.css" asp-append-version="true" />
+}
+
+<div class="editor-shell">
+    <div class="admin-panel editor-panel">
+        <h3 class="editor-title">Thông tin lịch hẹn</h3>
+
+        @if (Model.StatusId == 5)
+        {
+            <div class="business-note warning-note">
+                <i class="fas fa-clock-rotate-left me-2"></i>
+                Lịch này đã hết hạn. Khi lưu thời gian hẹn mới, hệ thống sẽ chuyển trạng thái sang <strong>Đã xác nhận</strong> và yêu cầu chọn nhân viên phụ trách.
+            </div>
+        }
+
+        @if (Model.HasPayment)
+        {
+            <div class="business-note warning-note">
+                <i class="fas fa-receipt me-2"></i>
+                Hóa đơn đã ghi nhận thanh toán. Bạn có thể đổi thời gian hoặc ghi chú, nhưng không thể đổi dịch vụ.
+            </div>
+        }
+
+        <form method="post" action="@Url.Action("SaveBooking", "Admin")">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="BookingId">
+            <input type="hidden" asp-for="BookingCode">
+            <input type="hidden" asp-for="HasPayment">
+
+            <div asp-validation-summary="ModelOnly"></div>
+
+            @if (!Model.IsEditing)
+            {
+                <p class="form-section-label">Loại khách hàng</p>
+                <div class="customer-mode" role="radiogroup" aria-label="Loại khách hàng">
+                    <label class="mode-option" for="modeExisting">
+                        <input asp-for="CustomerMode" type="radio" id="modeExisting" value="Existing">
+                        <i class="far fa-address-card"></i>
+                        Khách có hồ sơ
+                    </label>
+                    <label class="mode-option" for="modeGuest">
+                        <input asp-for="CustomerMode" type="radio" id="modeGuest" value="Guest">
+                        <i class="fas fa-person-walking"></i>
+                        Khách vãng lai
+                    </label>
+                </div>
+            }
+            else
+            {
+                <input type="hidden" asp-for="CustomerMode">
+            }
+
+            <div class="row g-4">
+                <div class="col-12">
+                    <div class="row g-4 @(Model.CustomerMode == "Guest" ? "d-none" : "")" id="existingCustomerFields">
+                        <div class="col-md-6">
+                            <label class="form-label" asp-for="CustomerId">Khách hàng</label>
+                            <select class="form-select" asp-for="CustomerId" id="customerSelect">
+                                <option value="0">Chọn khách hàng...</option>
+                                @foreach (var customer in Model.Customers)
+                                {
+                                    <option value="@customer.CustomerId">
+                                        @customer.FullName - @customer.PhoneNumber (@(customer.AccountId.HasValue ? "Thành viên" : "Vãng lai"))
+                                    </option>
+                                }
+                            </select>
+                            <span asp-validation-for="CustomerId"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" asp-for="PetId">Thú cưng</label>
+                            <select class="form-select" asp-for="PetId" id="petSelect">
+                                <option value="0">Chọn thú cưng...</option>
+                                @foreach (var pet in Model.Pets)
+                                {
+                                    <option value="@pet.PetId" data-customer-id="@pet.CustomerId">@pet.Name</option>
+                                }
+                            </select>
+                            <span asp-validation-for="PetId"></span>
+                        </div>
+                    </div>
+                </div>
+
+                @if (!Model.IsEditing)
+                {
+                    <div class="col-12 @(Model.CustomerMode == "Guest" ? "" : "d-none")" id="guestFields">
+                        <div class="guest-fields">
+                            <p class="form-section-label">Hồ sơ khách vãng lai mới</p>
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <label class="form-label" asp-for="GuestFullName">Họ tên khách</label>
+                                    <input class="form-control" asp-for="GuestFullName" placeholder="Nguyễn Văn A">
+                                    <span asp-validation-for="GuestFullName"></span>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" asp-for="GuestPhoneNumber">Số điện thoại</label>
+                                    <input class="form-control" asp-for="GuestPhoneNumber" maxlength="15" placeholder="0901234567">
+                                    <span asp-validation-for="GuestPhoneNumber"></span>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" asp-for="GuestEmail">Email (không bắt buộc)</label>
+                                    <input class="form-control" asp-for="GuestEmail" type="email" placeholder="khachhang@email.com">
+                                    <span asp-validation-for="GuestEmail"></span>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" asp-for="GuestPetName">Tên thú cưng</label>
+                                    <input class="form-control" asp-for="GuestPetName" placeholder="Milo">
+                                    <span asp-validation-for="GuestPetName"></span>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" asp-for="GuestSpeciesId">Loài</label>
+                                    <select class="form-select" asp-for="GuestSpeciesId" id="guestSpeciesSelect">
+                                        <option value="0">Chọn loài...</option>
+                                        @foreach (var species in Model.Species)
+                                        {
+                                            <option value="@species.SpeciesId">@species.SpeciesName</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" asp-for="GuestBreedId">Giống</label>
+                                    <select class="form-select" asp-for="GuestBreedId" id="guestBreedSelect">
+                                        <option value="0">Chọn giống...</option>
+                                        @foreach (var breed in Model.Breeds)
+                                        {
+                                            <option value="@breed.BreedId" data-species-id="@breed.SpeciesId">@breed.BreedName</option>
+                                        }
+                                    </select>
+                                    <span asp-validation-for="GuestBreedId"></span>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" asp-for="GuestPetWeight">Cân nặng (kg)</label>
+                                    <input class="form-control" asp-for="GuestPetWeight" type="number" min="0.01" max="150" step="0.01" placeholder="5.50">
+                                    <span asp-validation-for="GuestPetWeight"></span>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" asp-for="GuestPetNotes">Ghi chú hồ sơ thú cưng</label>
+                                    <textarea class="form-control" asp-for="GuestPetNotes" placeholder="Tuổi, giới tính hoặc lưu ý dài hạn của thú cưng..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="ServiceId">Dịch vụ</label>
+                    @if (Model.HasPayment)
+                    {
+                        <input type="hidden" asp-for="ServiceId">
+                        <select class="form-select" id="serviceSelect" disabled>
+                            @foreach (var service in Model.Services)
+                            {
+                                <option value="@service.ServiceId"
+                                        data-price="@service.BasePrice.ToString(CultureInfo.InvariantCulture)"
+                                        selected="@(service.ServiceId == Model.ServiceId ? "selected" : null)">
+                                    @service.ServiceName - @service.BasePrice.ToString("N0") đ
+                                </option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <select class="form-select" asp-for="ServiceId" id="serviceSelect">
+                            <option value="0" data-price="0">Chọn dịch vụ...</option>
+                            @foreach (var service in Model.Services)
+                            {
+                                <option value="@service.ServiceId" data-price="@service.BasePrice.ToString(CultureInfo.InvariantCulture)">
+                                    @service.ServiceName - @service.BasePrice.ToString("N0") đ
+                                </option>
+                            }
+                        </select>
+                    }
+                    <span asp-validation-for="ServiceId"></span>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="BookingDate">Ngày giờ hẹn</label>
+                    <input class="form-control" asp-for="BookingDate" type="datetime-local" value="@Model.BookingDate.ToString("yyyy-MM-ddTHH:mm")">
+                    <span asp-validation-for="BookingDate"></span>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="AssignedEmployeeId">Nhân viên phụ trách</label>
+                    <select class="form-select" asp-for="AssignedEmployeeId">
+                        <option value="">Chưa phân công</option>
+                        @foreach (var employee in Model.Employees)
+                        {
+                            <option value="@employee.EmployeeId">@employee.FullName - @employee.Role.RoleName</option>
+                        }
+                    </select>
+                    <span asp-validation-for="AssignedEmployeeId"></span>
+                </div>
+
+                @if (!Model.IsEditing)
+                {
+                    <div class="col-md-6">
+                        <label class="form-label" asp-for="StatusId">Trạng thái ban đầu</label>
+                        <select class="form-select" asp-for="StatusId">
+                            <option value="1">Chờ xác nhận</option>
+                            <option value="2">Đã xác nhận</option>
+                        </select>
+                    </div>
+                }
+                else
+                {
+                    <input type="hidden" asp-for="StatusId">
+                }
+
+                <div class="col-12">
+                    <label class="form-label" asp-for="Notes">Ghi chú chăm sóc</label>
+                    <textarea class="form-control" asp-for="Notes" placeholder="Tình trạng thú cưng, yêu cầu đặc biệt hoặc thông tin cần lưu ý..."></textarea>
+                </div>
+            </div>
+
+            <div class="editor-actions">
+                <a class="btn-cancel" href="@Url.Action("Bookings", "Admin")">Hủy</a>
+                <button class="btn-save" type="submit">
+                    <i class="far fa-floppy-disk"></i>
+                    @(Model.IsEditing ? "Lưu thay đổi" : "Tạo lịch hẹn")
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <aside>
+        <div class="admin-panel side-box">
+            <h3>Chi phí dự kiến</h3>
+            <div class="summary-row">
+                <span>Giá dịch vụ</span>
+                <strong id="baseAmount">0 đ</strong>
+            </div>
+            <div class="summary-row">
+                <span>VAT 10%</span>
+                <strong id="vatAmount">0 đ</strong>
+            </div>
+            <div class="summary-row">
+                <span>Tổng hóa đơn</span>
+                <strong class="total-value" id="totalAmount">0 đ</strong>
+            </div>
+        </div>
+
+        <div class="business-note">
+            <strong>Quy tắc tạo lịch</strong><br>
+            Lịch ở trạng thái chờ có thể chưa phân công. Muốn xác nhận lịch, admin phải chọn nhân viên phụ trách và nhân viên không được trùng giờ với lịch khác. Lịch do admin tạo sẽ sinh hóa đơn chưa thanh toán.
+        </div>
+    </aside>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const customerSelect = document.getElementById('customerSelect');
+            const petSelect = document.getElementById('petSelect');
+            const serviceSelect = document.getElementById('serviceSelect');
+            const existingCustomerFields = document.getElementById('existingCustomerFields');
+            const guestFields = document.getElementById('guestFields');
+            const modeInputs = document.querySelectorAll('input[type="radio"][name="CustomerMode"]');
+            const guestSpeciesSelect = document.getElementById('guestSpeciesSelect');
+            const guestBreedSelect = document.getElementById('guestBreedSelect');
+            const originalPetId = '@Model.PetId';
+            const originalBreedId = '@Model.GuestBreedId';
+
+            function filterPets(preserveCurrent) {
+                const customerId = customerSelect.value;
+                let selectedAvailable = false;
+
+                Array.from(petSelect.options).forEach(option => {
+                    if (option.value === '0') {
+                        return;
+                    }
+
+                    const visible = option.dataset.customerId === customerId;
+                    option.hidden = !visible;
+                    option.disabled = !visible;
+                    if (visible && option.value === petSelect.value) {
+                        selectedAvailable = true;
+                    }
+                });
+
+                if (!selectedAvailable && !preserveCurrent) {
+                    petSelect.value = '0';
+                }
+
+                if (preserveCurrent && originalPetId) {
+                    petSelect.value = originalPetId;
+                }
+            }
+
+            function filterBreeds(preserveCurrent) {
+                if (!guestSpeciesSelect || !guestBreedSelect) {
+                    return;
+                }
+
+                const speciesId = guestSpeciesSelect.value;
+                let selectedAvailable = false;
+
+                Array.from(guestBreedSelect.options).forEach(option => {
+                    if (option.value === '0') {
+                        return;
+                    }
+
+                    const visible = option.dataset.speciesId === speciesId;
+                    option.hidden = !visible;
+                    option.disabled = !visible;
+                    if (visible && option.value === guestBreedSelect.value) {
+                        selectedAvailable = true;
+                    }
+                });
+
+                if (!selectedAvailable && !preserveCurrent) {
+                    guestBreedSelect.value = '0';
+                }
+
+                if (preserveCurrent && originalBreedId) {
+                    guestBreedSelect.value = originalBreedId;
+                }
+            }
+
+            function updateCustomerMode() {
+                if (!guestFields || !modeInputs.length) {
+                    return;
+                }
+
+                const selectedMode = Array.from(modeInputs).find(input => input.checked)?.value || 'Existing';
+                const isGuest = selectedMode === 'Guest';
+
+                existingCustomerFields.classList.toggle('d-none', isGuest);
+                guestFields.classList.toggle('d-none', !isGuest);
+                customerSelect.disabled = isGuest;
+                petSelect.disabled = isGuest;
+
+                guestFields.querySelectorAll('input, select, textarea').forEach(input => {
+                    input.disabled = !isGuest;
+                });
+            }
+
+            function updateAmount() {
+                const option = serviceSelect.options[serviceSelect.selectedIndex];
+                const base = Number(option ? option.dataset.price || 0 : 0);
+                const vat = base * 0.1;
+                const total = base + vat;
+                const formatter = new Intl.NumberFormat('vi-VN');
+
+                document.getElementById('baseAmount').textContent = formatter.format(base) + ' đ';
+                document.getElementById('vatAmount').textContent = formatter.format(vat) + ' đ';
+                document.getElementById('totalAmount').textContent = formatter.format(total) + ' đ';
+            }
+
+            filterPets(true);
+            filterBreeds(true);
+            updateCustomerMode();
+            updateAmount();
+
+            customerSelect.addEventListener('change', function () {
+                filterPets(false);
+            });
+            modeInputs.forEach(input => input.addEventListener('change', updateCustomerMode));
+            if (guestSpeciesSelect) {
+                guestSpeciesSelect.addEventListener('change', function () {
+                    filterBreeds(false);
+                });
+            }
+            serviceSelect.addEventListener('change', updateAmount);
+        });
+    </script>
+}

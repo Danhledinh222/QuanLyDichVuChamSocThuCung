@@ -1,0 +1,136 @@
+@model IEnumerable<PetcareWebsite.Models.Invoice>
+@using System.Linq
+
+@{
+    ViewData["Title"] = "Thanh toán | PetCare";
+    var customer = ViewBag.Customer as PetcareWebsite.Models.Customer;
+    int totalInvoices = ViewBag.TotalInvoices ?? 0;
+    decimal totalAmount = ViewBag.TotalAmount ?? 0;
+    decimal paidAmount = ViewBag.PaidAmount ?? 0;
+    decimal balanceAmount = ViewBag.BalanceAmount ?? 0;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/profile/billing.css" asp-append-version="true" />
+}
+
+<div class="profile-wrapper">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="profile-card text-center">
+                    <div class="profile-summary">
+                        <div class="avatar-container">
+                            <img src="~/images/common/user-avatar.jpg" alt="Avatar">
+                        </div>
+                        <h4>@customer?.FullName</h4>
+                        <p>@customer?.Email</p>
+                        <span class="badge-status">Thành viên Tiêu chuẩn</span>
+                    </div>
+                    <div class="quick-actions-grid">
+                        <a href="@Url.Action("Index", "Pet")" class="action-card"><i class="fas fa-paw"></i><span>Thú cưng</span></a>
+                        <a href="@Url.Action("Detail", "Booking")" class="action-card"><i class="far fa-calendar-check"></i><span>Lịch hẹn</span></a>
+                        <a href="@Url.Action("Billing", "Profile")" class="action-card active"><i class="far fa-credit-card"></i><span>Thanh toán</span></a>
+                        <a href="@Url.Action("Reviews", "Profile")" class="action-card"><i class="far fa-star"></i><span>Đánh giá</span></a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="profile-card">
+                    <div class="section-header">
+                        <h3>Thanh toán & hóa đơn</h3>
+                    </div>
+
+                    <div class="billing-stats">
+                        <div class="billing-stat">
+                            <strong>@totalInvoices</strong>
+                            <span>Tổng hóa đơn</span>
+                        </div>
+                        <div class="billing-stat">
+                            <strong>@paidAmount.ToString("N0") đ</strong>
+                            <span>Đã thanh toán</span>
+                        </div>
+                        <div class="billing-stat">
+                            <strong>@balanceAmount.ToString("N0") đ</strong>
+                            <span>Còn phải thu</span>
+                        </div>
+                    </div>
+
+                    @if (!Model.Any())
+                    {
+                        <div class="empty-state">
+                            <i class="far fa-credit-card"></i>
+                            <h5 class="fw-bold">Chưa có hóa đơn</h5>
+                            <p class="text-muted mb-4">Hóa đơn sẽ được tạo sau khi bạn đặt lịch dịch vụ.</p>
+                            <a href="@Url.Action("Index", "Booking")" class="btn btn-primary rounded-pill px-4 fw-bold">Đặt lịch ngay</a>
+                        </div>
+                    }
+                    else
+                    {
+                        foreach (var invoice in Model)
+                        {
+                            var finalAmount = (invoice.TotalAmount ?? 0) - (invoice.DiscountAmount ?? 0);
+                            var paid = invoice.PaidAmount ?? 0;
+                            var isClosedWithoutCollection = invoice.Booking.StatusId == 4 || invoice.Booking.StatusId == 5;
+                            var balance = isClosedWithoutCollection ? 0 : finalAmount - paid;
+                            var statusClass = isClosedWithoutCollection && paid <= 0 ? "status-paid" : invoice.StatusId == 3 ? "status-paid" : invoice.StatusId == 2 ? "status-partial" : "status-unpaid";
+                            var statusText = isClosedWithoutCollection && paid <= 0 ? "Không phát sinh thu" : invoice.StatusId == 3 ? "Đã thanh toán" : invoice.StatusId == 2 ? "Thanh toán một phần" : "Chưa thanh toán";
+                            var services = invoice.Booking.BookingDetails.ToList();
+
+                            <div class="invoice-card">
+                                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                                    <div>
+                                        <div class="invoice-code">@invoice.InvoiceCode</div>
+                                        <div class="invoice-meta">
+                                            <i class="far fa-calendar me-1"></i>@invoice.Booking.BookingDate.ToString("dd/MM/yyyy HH:mm")
+                                            <span class="mx-2">|</span>
+                                            <i class="fas fa-ticket-alt me-1"></i>@invoice.Booking.BookingCode
+                                        </div>
+                                    </div>
+                                    <span class="status-badge @statusClass">@statusText</span>
+                                </div>
+
+                                <div class="invoice-row">
+                                    <span class="label">Tổng tiền</span>
+                                    <span class="value">@((invoice.TotalAmount ?? 0).ToString("N0")) đ</span>
+                                </div>
+                                <div class="invoice-row">
+                                    <span class="label">Giảm giá</span>
+                                    <span class="value">@((invoice.DiscountAmount ?? 0).ToString("N0")) đ</span>
+                                </div>
+                                <div class="invoice-row">
+                                    <span class="label">Đã thanh toán</span>
+                                    <span class="value text-success">@paid.ToString("N0") đ</span>
+                                </div>
+                                <div class="invoice-row">
+                                    <span class="label">Còn lại</span>
+                                    <span class="value @(balance > 0 ? "text-danger" : "text-success")">@balance.ToString("N0") đ</span>
+                                </div>
+
+                                @if (services.Any())
+                                {
+                                    <div class="service-list">
+                                        @foreach (var detail in services)
+                                        {
+                                            <div class="service-line">
+                                                <span><i class="fas fa-paw me-1"></i>@(detail.Pet?.Name ?? "Thú cưng") - @detail.Service?.ServiceName</span>
+                                                <span>@detail.ActualPrice.ToString("N0") đ</span>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                <div class="d-flex justify-content-end mt-3">
+                                    <a href="@Url.Action("Success", "Booking", new { code = invoice.Booking.BookingCode })" class="btn btn-outline-custom">
+                                        <i class="fas fa-receipt me-2"></i>Xem chi tiết
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

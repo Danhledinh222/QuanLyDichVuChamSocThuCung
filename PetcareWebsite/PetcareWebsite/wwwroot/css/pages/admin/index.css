@@ -1,0 +1,165 @@
+.stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .stat-card {
+            padding: 22px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            min-height: 140px;
+        }
+
+        .stat-card span {
+            color: var(--admin-muted);
+            font-size: 0.82rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .stat-card strong {
+            display: block;
+            font-size: 1.8rem;
+            line-height: 1.1;
+            font-weight: 900;
+            margin-top: 10px;
+        }
+
+        .stat-card small {
+            display: block;
+            margin-top: 10px;
+            color: var(--admin-muted);
+            font-weight: 700;
+        }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+
+        .icon-blue { background: var(--admin-blue); }
+        .icon-green { background: var(--admin-green); }
+        .icon-orange { background: var(--admin-orange); }
+        .icon-purple { background: var(--admin-purple); }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .chart-wrap {
+            height: 275px;
+            padding: 20px;
+        }
+
+        .activity-list,
+        .task-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .activity-list li,
+        .task-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 13px;
+            padding: 16px 20px;
+            border-bottom: 1px solid #F3F4F6;
+        }
+
+        .activity-list li:last-child,
+        .task-list li:last-child {
+            border-bottom: none;
+        }
+
+        .item-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: #EFF6FF;
+            color: var(--admin-blue);
+        }
+
+        .item-body {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .item-body h4 {
+            margin: 0 0 4px;
+            font-size: 0.93rem;
+            font-weight: 900;
+        }
+
+        .item-body p {
+            margin: 0;
+            color: var(--admin-muted);
+            font-size: 0.84rem;
+            line-height: 1.55;
+            font-weight: 600;
+        }
+
+        .booking-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 14px;
+            align-items: center;
+        }
+
+        .booking-meta {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .money {
+            color: var(--admin-green);
+            font-weight: 900;
+            font-size: 0.92rem;
+        }
+
+        .empty {
+            padding: 28px;
+            color: var(--admin-muted);
+            font-weight: 700;
+            text-align: center;
+        }
+
+        @media (max-width: 1180px) {
+            .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 560px) {
+            .stat-grid { grid-template-columns: 1fr; }
+            .booking-row { grid-template-columns: 1fr; }
+            .booking-meta { align-items: flex-start; text-align: left; }
+        }
+.task-warning-icon {
+    background: #FEF2F2;
+    color: var(--admin-red);
+}
+
+.task-calendar-icon {
+    background: #FEF3C7;
+    color: #B45309;
+}

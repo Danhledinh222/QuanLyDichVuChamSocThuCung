@@ -1,0 +1,243 @@
+@model PetcareWebsite.Models.Pet
+
+@{
+    ViewData["Title"] = $"Hồ sơ {Model.Name} | PetCare";
+    var historyList = ViewBag.History as IEnumerable<PetcareWebsite.Models.BookingDetail> ?? Enumerable.Empty<PetcareWebsite.Models.BookingDetail>();
+    // Lấy danh sách Loài từ CSDL
+    var speciesList = ViewBag.SpeciesList as IEnumerable<PetcareWebsite.Models.PetSpecy> ?? new List<PetcareWebsite.Models.PetSpecy>();
+    var petImage = Model.SpeciesId == 1
+        ? Url.Content("~/images/pets/dog-profile.jpg")
+        : Url.Content("~/images/pets/cat.jpg");
+}
+
+@functions {
+    private static string BookingStatusText(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "Đã xác nhận",
+            3 => "Đã hoàn thành",
+            4 => "Đã hủy",
+            5 => "Đã hết hạn",
+            6 => "Đang thực hiện",
+            _ => "Chờ xác nhận"
+        };
+    }
+
+    private static string BookingStatusClass(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "confirmed",
+            3 => "completed",
+            4 => "cancelled",
+            5 => "expired",
+            6 => "progress",
+            _ => "pending"
+        };
+    }
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/pet/detail.css" asp-append-version="true" />
+}
+
+<div class="pet-profile-wrapper">
+    <div class="container">
+        <div class="breadcrumb-custom">
+            <a href="@Url.Action("Index", "Home")">Trang chủ</a>
+            <i class="fas fa-chevron-right"></i>
+            <a href="@Url.Action("Index", "Pet")">Thú cưng của tôi</a>
+            <i class="fas fa-chevron-right"></i>
+            <span class="text-dark">Hồ sơ @Model.Name</span>
+        </div>
+
+        <div class="row g-5">
+            <div class="col-lg-4">
+                <div class="info-card">
+                    <div class="avatar-wrap">
+                        <img src="@petImage" alt="@Model.Name">
+                    </div>
+                    <h1 class="pet-name-lg">@Model.Name</h1>
+                    <p class="pet-breed-lg">@(Model.Species?.SpeciesName ?? "Thú cưng") &bull; @(Model.PetBreed?.BreedName ?? "Chưa rõ")</p>
+
+                    <div class="trait-grid">
+                        <div class="trait-box">
+                            <i class="fas fa-paw pet-icon-blue"></i>
+                            <span>Loài</span>
+                            <strong>@(Model.Species?.SpeciesName ?? "Thú cưng")</strong>
+                        </div>
+
+                        <div class="trait-box">
+                            <i class="fas fa-dna pet-icon-amber"></i>
+                            <span>Giống</span>
+                            <strong>@(Model.PetBreed?.BreedName ?? "Chưa rõ")</strong>
+                        </div>
+
+                        <div class="trait-box">
+                            <i class="fas fa-weight pet-icon-green"></i>
+                            <span>Cân nặng</span>
+                            <strong>@Model.Weight kg</strong>
+                        </div>
+
+                        <div class="trait-box">
+                            <i class="far fa-calendar-alt pet-icon-purple"></i>
+                            <span>Ngày đăng ký</span>
+                            <strong>@(Model.CreatedAt?.ToString("dd/MM/yyyy") ?? "Chưa rõ")</strong>
+                        </div>
+                    </div>
+
+                    <div class="notes-box">
+                        <h6><i class="fas fa-clipboard"></i> Ghi chú chăm sóc</h6>
+                        <p>@(string.IsNullOrWhiteSpace(Model.Notes) ? "Chưa có ghi chú." : Model.Notes)</p>
+                    </div>
+
+                    <div class="d-flex flex-column gap-2 mt-4">
+                        <button class="btn btn-outline-secondary py-3 fw-bold rounded-pill" onclick="openEditModal(@Model.PetId)">
+                            <i class="far fa-edit me-2"></i> Chỉnh sửa hồ sơ
+                        </button>
+                        <a href="@Url.Action("Index", "Booking")" class="btn btn-success py-3 fw-bold rounded-pill">
+                            <i class="far fa-calendar-plus me-2"></i> Đặt lịch ngay
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="content-card">
+                    <div class="content-heading">
+                        <h2><i class="fas fa-history me-2"></i> Lịch sử dịch vụ</h2>
+                        <p>Các lịch hẹn đã ghi nhận cho @Model.Name</p>
+                    </div>
+
+                    <div class="tab-content">
+                        <div id="history">
+                            @if (!historyList.Any())
+                            {
+                                <div class="text-center py-5">
+                                    <i class="far fa-folder-open text-muted empty-record-icon"></i>
+                                    <h5 class="mt-3 fw-bold text-dark">Chưa có lịch sử hoạt động</h5>
+                                    <p class="text-muted">Bé @Model.Name chưa sử dụng dịch vụ nào tại PetCare.</p>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="history-timeline">
+                                    @foreach (var item in historyList)
+                                    {
+                                        <div class="timeline-item">
+                                            <div class="timeline-dot"></div>
+                                            <div class="timeline-content">
+                                                <div class="tl-header">
+                                                    <h5>@item.Service.ServiceName</h5>
+                                                    <span class="tl-date">@item.Booking.BookingDate.ToString("dd/MM/yyyy HH:mm")</span>
+                                                </div>
+                                                <div class="timeline-meta">
+                                                    <p class="text-muted mb-0 font-size-sm">Mã lịch hẹn: <strong>#@item.Booking.BookingCode</strong></p>
+                                                    <span class="detail-status status-@BookingStatusClass(item.Booking.StatusId)">@BookingStatusText(item.Booking.StatusId)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="petModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content pet-modal-content">
+            <div class="modal-header border-0 pb-3 mt-3 px-4 position-relative">
+                <button type="button" class="btn-close position-absolute top-0 end-0 me-4 mt-2 shadow-none" data-bs-dismiss="modal"></button>
+                <h4 class="modal-title fw-bold text-dark text-center w-100" id="modalTitle">Chỉnh sửa hồ sơ</h4>
+            </div>
+            <form asp-action="SavePet" asp-controller="Pet" method="POST">
+                <div class="modal-body px-4 pt-0">
+                    <input type="hidden" name="PetId" id="formPetId" value="">
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark">Tên của bé *</label>
+                        <input type="text" name="Name" id="formPetName" class="form-control" placeholder="Nhập tên thú cưng" required>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Loài *</label>
+                            <select name="SpeciesId" id="formSpeciesId" class="form-select" onchange="loadBreedsBySpecies(this.value)" required>
+                                <option value="">Chọn loài</option>
+                                @foreach (var sp in speciesList)
+                                {
+                                    <option value="@sp.SpeciesId">@sp.SpeciesName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Giống loài *</label>
+                            <select name="BreedId" id="formBreedId" class="form-select" required>
+                                <option value="">Chọn giống</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark">Cân nặng (kg) *</label>
+                        <input type="number" step="0.1" name="Weight" id="formPetWeight" class="form-control" min="0.1" max="150" placeholder="Nhập cân nặng (VD: 5.5)" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark">Ghi chú đặc biệt</label>
+                        <textarea name="Notes" id="formPetNotes" class="form-control" rows="3" placeholder="Sở thích, dị ứng, thói quen..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 px-4 pb-4 pt-0 justify-content-end gap-2 border-top mt-2">
+                    <button type="button" class="btn btn-light rounded-pill px-4 fw-bold border" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-success rounded-pill px-5 fw-bold">Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const petModal = new bootstrap.Modal(document.getElementById('petModal'));
+
+        async function loadBreedsBySpecies(speciesId, selectedBreedId = null) {
+            const breedSelect = document.getElementById('formBreedId');
+            breedSelect.innerHTML = '<option value="">Đang tải...</option>';
+            if (!speciesId) { breedSelect.innerHTML = '<option value="">Chọn giống</option>'; return; }
+
+            try {
+                const response = await fetch(`/Pet/GetBreedsBySpecies?speciesId=${speciesId}`);
+                const breeds = await response.json();
+                let html = '<option value="">Chọn giống</option>';
+                breeds.forEach(b => {
+                    html += `<option value="${b.breedId}" ${selectedBreedId == b.breedId ? 'selected' : ''}>${b.breedName}</option>`;
+                });
+                breedSelect.innerHTML = html;
+            } catch (error) { breedSelect.innerHTML = '<option value="">Lỗi tải</option>'; }
+        }
+
+        async function openEditModal(petId) {
+            try {
+                const response = await fetch(`/Pet/GetPetDetail?id=${petId}`);
+                const data = await response.json();
+
+                document.getElementById('formPetId').value = data.petId;
+                document.getElementById('formPetName').value = data.name;
+                document.getElementById('formSpeciesId').value = data.speciesId;
+                document.getElementById('formPetWeight').value = data.weight;
+                document.getElementById('formPetNotes').value = data.notes ?? "";
+
+                await loadBreedsBySpecies(data.speciesId, data.breedId);
+                petModal.show();
+            } catch (error) { alert("Lỗi tải thông tin!"); }
+        }
+    </script>
+}

@@ -1,0 +1,154 @@
+@model IEnumerable<PetcareWebsite.Models.ServiceCatalog>
+
+@{
+    ViewData["Title"] = "Bảng giá";
+
+    var services = Model.ToList();
+    var groupedServices = services
+        .GroupBy(service => service.Category?.CategoryName ?? "Dịch vụ khác")
+        .OrderBy(group => group.Key)
+        .ToList();
+
+    var minPrice = services.Any() ? services.Min(service => service.BasePrice) : 0;
+    var maxPrice = services.Any() ? services.Max(service => service.BasePrice) : 0;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/home/pricing.css" asp-append-version="true" />
+}
+
+<div class="pricing-page">
+    <section class="pricing-hero">
+        <div class="container">
+            <h1>Bảng giá chăm sóc thú cưng</h1>
+            <p>Trang này chỉ tổng hợp giá theo nhóm dịch vụ để khách dễ so sánh. Phần mô tả, hình ảnh và quy trình chi tiết vẫn nằm ở trang Dịch vụ.</p>
+            <div class="pricing-actions">
+                <a class="btn-hero-light" href="@Url.Action("Index", "Booking")">
+                    <i class="far fa-calendar-check"></i> Đặt lịch ngay
+                </a>
+                <a class="btn-hero-outline" href="@Url.Action("Index", "Service")">
+                    <i class="fas fa-list-ul"></i> Xem trang dịch vụ
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="pricing-summary">
+        <div class="container">
+            <div class="summary-panel">
+                <div class="row g-0">
+                    <div class="col-lg-4">
+                        <div class="summary-item">
+                            <div class="summary-label">Số nhóm dịch vụ</div>
+                            <p class="summary-value">@groupedServices.Count nhóm</p>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="summary-item">
+                            <div class="summary-label">Dịch vụ đang mở</div>
+                            <p class="summary-value">@services.Count dịch vụ</p>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="summary-item">
+                            <div class="summary-label">Khoảng giá</div>
+                            <p class="summary-value">@minPrice.ToString("N0") - @maxPrice.ToString("N0") đ</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content-band">
+        <div class="container">
+            <div class="mb-5">
+                <div class="section-kicker">Bảng giá chung</div>
+                <h2 class="section-heading">Giá niêm yết theo từng nhóm</h2>
+                <p class="section-copy">Giá dưới đây lấy trực tiếp từ dữ liệu dịch vụ đang hoạt động trong hệ thống. Khi tạo đơn, hóa đơn sẽ cộng VAT 10% theo luồng thanh toán hiện tại.</p>
+            </div>
+
+            @if (!services.Any())
+            {
+                <div class="empty-state">
+                    <i class="fas fa-tags fs-1 text-success mb-3"></i>
+                    <h3 class="fw-bold text-dark">Chưa có dịch vụ đang hoạt động</h3>
+                    <p class="mb-0">Khi admin bật dịch vụ trong cơ sở dữ liệu, bảng giá sẽ tự hiển thị tại đây.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var group in groupedServices)
+                {
+                    <div class="price-group">
+                        <div class="price-group-header">
+                            <h3>@group.Key</h3>
+                            <span class="group-count">@group.Count() dịch vụ</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table price-table">
+                                <thead>
+                                    <tr>
+                                        <th>Dịch vụ</th>
+                                        <th>Giá gốc</th>
+                                        <th>Thời lượng</th>
+                                        <th>Sức chứa</th>
+                                        <th class="text-end">Đặt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var service in group)
+                                    {
+                                        var durationText = service.EstimatedDuration.HasValue ? $"{service.EstimatedDuration.Value} phút" : "Liên hệ";
+                                        <tr>
+                                            <td>
+                                                <div class="service-name">@service.ServiceName</div>
+                                            </td>
+                                            <td data-label="Giá gốc">
+                                                <span class="price-value">@service.BasePrice.ToString("N0") đ</span>
+                                            </td>
+                                            <td data-label="Thời lượng">@durationText</td>
+                                            <td data-label="Sức chứa">@service.MaxCapacity bé / khung giờ</td>
+                                            <td data-label="Đặt" class="text-end">
+                                                <a class="mini-action" href="@Url.Action("Index", "Booking", new { serviceId = service.ServiceId })" title="Đặt lịch @service.ServiceName">
+                                                    <i class="far fa-calendar-plus"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </section>
+
+    <section class="policy-band">
+        <div class="container">
+            <div class="mb-5">
+                <div class="section-kicker">Lưu ý thanh toán</div>
+                <h2 class="section-heading text-white">Chính sách giá rõ ràng</h2>
+                <p class="section-copy text-white-50">Các quy tắc này giúp khách hiểu trước cách hệ thống tính tiền trước khi đặt lịch.</p>
+            </div>
+            <div class="policy-grid">
+                <div class="policy-item">
+                    <i class="fas fa-receipt"></i>
+                    <h4>Giá gốc chưa gồm VAT</h4>
+                    <p>Hóa đơn trong hệ thống cộng thêm VAT 10% khi khách xác nhận đặt lịch.</p>
+                </div>
+                <div class="policy-item">
+                    <i class="fas fa-weight-hanging"></i>
+                    <h4>Có thể phụ thu theo tình trạng lông</h4>
+                    <p>Nhân viên sẽ báo trước nếu thú cưng cần xử lý rối lông, ve rận hoặc chăm sóc đặc biệt.</p>
+                </div>
+                <div class="policy-item">
+                    <i class="fas fa-shield-alt"></i>
+                    <h4>Không tự đổi giá khi đặt</h4>
+                    <p>Giá trên phiếu đặt lịch giữ nguyên theo dữ liệu dịch vụ tại thời điểm khách tạo đơn.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>

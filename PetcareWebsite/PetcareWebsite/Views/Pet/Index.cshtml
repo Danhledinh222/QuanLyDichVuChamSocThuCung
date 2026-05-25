@@ -1,0 +1,355 @@
+@model IEnumerable<PetcareWebsite.Models.Pet>
+
+@{
+    ViewData["Title"] = "Thú cưng của tôi | PetCare";
+
+    // FIX LỖI "PetSpecy" CỦA EF CORE Ở ĐÂY SẾP NHÉ
+    var speciesList = ViewBag.SpeciesList as IEnumerable<PetcareWebsite.Models.PetSpecy> ?? new List<PetcareWebsite.Models.PetSpecy>();
+    var pets = Model?.ToList() ?? new List<PetcareWebsite.Models.Pet>();
+    var recentActivities = ViewBag.RecentActivities as IEnumerable<PetcareWebsite.Models.BookingDetail> ?? Enumerable.Empty<PetcareWebsite.Models.BookingDetail>();
+    int totalPets = pets.Count;
+}
+
+@functions {
+    private static string BookingStatusText(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "Đã xác nhận",
+            3 => "Đã hoàn thành",
+            4 => "Đã hủy",
+            5 => "Đã hết hạn",
+            6 => "Đang thực hiện",
+            _ => "Chờ xác nhận"
+        };
+    }
+
+    private static string BookingStatusClass(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "confirmed",
+            3 => "completed",
+            4 => "cancelled",
+            5 => "expired",
+            6 => "progress",
+            _ => "pending"
+        };
+    }
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/pet/index.css" asp-append-version="true" />
+}
+
+<div class="pets-wrapper">
+    <section class="hero-dashboard">
+        <div class="container">
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success fw-bold text-center border-0 rounded-4 shadow-sm mb-4">
+                    <i class="fas fa-check-circle me-2"></i> @TempData["SuccessMessage"]
+                </div>
+            }
+
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <span class="hero-badge"><i class="fas fa-bolt text-warning"></i> Quản lý thông minh</span>
+                    <h1 class="hero-title">Quản lý thú <br>cưng của bạn</h1>
+                    <p class="hero-desc">Theo dõi thông tin, lịch sử chăm sóc và đặt lịch dịch vụ cho những người bạn bốn chân yêu thương của bạn.</p>
+                    <button class="btn btn-primary" onclick="openAddModal()"><i class="fas fa-plus me-2"></i> Thêm thú cưng</button>
+                </div>
+
+                <div class="col-lg-6 mt-5 mt-lg-0">
+                    <div class="hero-collage">
+                        <div class="float-card fc-1">
+                            <div class="fc-icon green"><i class="fas fa-heart"></i></div>
+                            <div><h6>@totalPets thú cưng</h6><small>Đang chăm sóc</small></div>
+                        </div>
+
+                        <img src="~/images/pets/dog-profile.jpg" alt="Dog">
+                        <img src="~/images/pets/dog-golden.jpg" alt="Dog">
+                        <img src="~/images/pets/cat.jpg" alt="Cat">
+                        <img src="~/images/pets/cat-alt.jpg" alt="Cat">
+
+                        <div class="float-card fc-2">
+                            <div class="fc-icon yellow"><i class="far fa-calendar-alt"></i></div>
+                            <div><h6>@ViewBag.UpcomingCount lịch hẹn</h6><small>Sắp tới</small></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="dash-section pt-0 mt-5">
+        <div class="container">
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-icon text-green summary-icon-green"><h3 class="mb-0">@totalPets</h3></div>
+                    <div><p>Tổng thú cưng</p></div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon text-primary summary-icon-blue"><i class="far fa-calendar-check"></i></div>
+                    <div>
+                        <h3 class="mb-1 text-dark">@ViewBag.UpcomingCount</h3>
+                        <p>Lịch hẹn sắp tới</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon text-warning summary-icon-yellow"><i class="far fa-clock"></i></div>
+                    <div>
+                        <h6 class="mb-1 fw-bold fs-5 text-dark text-truncate latest-service-name">@ViewBag.LatestService</h6>
+                        <p>Dịch vụ gần nhất</p>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-icon text-danger summary-icon-pink"><i class="far fa-heart"></i></div>
+                    <div>
+                        <h6 class="mb-1 fw-bold fs-5 text-dark text-truncate favorite-pet-name">@ViewBag.MostVisitedPet</h6>
+                        <p>Sử dụng nhiều nhất</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="dash-section bg-white border-top">
+        <div class="container pt-4">
+            <div class="section-header">
+                <div>
+                    <h2>Danh sách thú cưng</h2>
+                    <p>Quản lý và theo dõi thú cưng của bạn</p>
+                </div>
+                <div class="filter-bar">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchInput" placeholder="Tìm kiếm..." onkeyup="filterPets()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="pet-grid" id="petGrid">
+
+                @if (!pets.Any())
+                {
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-paw text-muted empty-pet-icon"></i>
+                        <h4 class="mt-4 fw-bold">Chưa có hồ sơ thú cưng nào</h4>
+                        <p class="text-muted">Bấm vào nút "Thêm thú cưng" ở phía trên để bắt đầu nhé sếp!</p>
+                    </div>
+                }
+
+                @foreach (var pet in pets)
+                {
+                    var petImage = pet.SpeciesId == 1
+                        ? Url.Content("~/images/pets/dog-profile.jpg")
+                        : Url.Content("~/images/pets/cat.jpg");
+
+                    <div class="pet-card pet-item" data-name="@pet.Name.ToLower()" id="pet-card-@pet.PetId">
+                        <div class="pet-img-wrap">
+                            <img src="@petImage" alt="@pet.Name">
+                        </div>
+                        <div class="pet-info">
+                            <h3>@pet.Name</h3>
+                            <p class="breed">@(pet.PetBreed?.BreedName ?? "Chưa rõ") • @(pet.Species?.SpeciesName ?? "Chưa xác định")</p>
+                            <p class="desc text-truncate">@(string.IsNullOrWhiteSpace(pet.Notes) ? "Chưa có ghi chú chăm sóc." : pet.Notes)</p>
+                            <span class="pet-weight">@pet.Weight kg</span>
+                        </div>
+                        <div class="pet-footer">
+                            <div class="date"><i class="far fa-clock"></i> Đăng ký: @(pet.CreatedAt?.ToString("dd/MM/yyyy") ?? "Chưa rõ")</div>
+                            <a href="@Url.Action("Detail", "Pet", new { id = pet.PetId })"><i class="far fa-eye"></i> Chi tiết</a>
+                        </div>
+                    </div>
+                }
+
+                <div class="pet-card add-new" onclick="openAddModal()">
+                    <div class="add-icon-circle">
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <h3 class="fw-bold text-dark fs-5 mb-2">Thêm thú cưng mới</h3>
+                    <p class="text-muted mb-0">Tạo hồ sơ cho thành viên mới của gia đình</p>
+                </div>
+            </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section class="dash-section pt-5">
+        <div class="container">
+            <div class="activity-header">
+                <span class="hero-badge mb-2 activity-badge">Lịch sử hoạt động</span>
+                <h3>Hoạt động gần đây</h3>
+                <p>Theo dõi tất cả các dịch vụ và hoạt động chăm sóc cho thú cưng của bạn</p>
+            </div>
+
+            <div class="activity-list">
+                @if (!recentActivities.Any())
+                {
+                    <div class="activity-empty text-center text-muted">
+                        Chưa có lịch sử dịch vụ cho các thú cưng của bạn.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var activity in recentActivities)
+                    {
+                        <div class="activity-item">
+                            <div class="act-icon blue"><i class="far fa-calendar-check"></i></div>
+                            <div class="act-details">
+                                <h6>@activity.Service.ServiceName</h6>
+                                <p class="text-muted mb-0">@activity.Pet.Name • Mã lịch hẹn: #@activity.Booking.BookingCode</p>
+                            </div>
+                            <div class="act-meta">
+                                <span class="date">@activity.Booking.BookingDate.ToString("dd/MM/yyyy HH:mm")</span>
+                                <span class="tag activity-status-@BookingStatusClass(activity.Booking.StatusId)">@BookingStatusText(activity.Booking.StatusId)</span>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="modal fade" id="petModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header pb-3 border-0">
+                <h4 class="modal-title fw-bold" id="modalTitle">Hồ sơ thú cưng</h4>
+                <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="SavePet" asp-controller="Pet" method="POST">
+                <div class="modal-body pt-0">
+                    <input type="hidden" name="PetId" id="formPetId" value="">
+
+                    <div class="mb-4">
+                        <label class="form-label">Tên của bé *</label>
+                        <input type="text" name="Name" id="formPetName" class="form-control" placeholder="Nhập tên thú cưng" required>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Giống loài *</label>
+                            <select name="SpeciesId" id="formSpeciesId" class="form-select" onchange="loadBreedsBySpecies(this.value)" required>
+                                <option value="">Chọn loài (Chó/Mèo)</option>
+                                @foreach (var sp in speciesList)
+                                {
+                                    <option value="@sp.SpeciesId">@sp.SpeciesName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">&nbsp;</label>
+                            <select name="BreedId" id="formBreedId" class="form-select" required>
+                                <option value="">Chọn giống</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Cân nặng (kg) *</label>
+                        <input type="number" step="0.1" name="Weight" id="formPetWeight" class="form-control" placeholder="Nhập cân nặng" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Ghi chú (Tùy chọn)</label>
+                        <textarea name="Notes" id="formPetNotes" class="form-control" rows="3" placeholder="Sở thích, dị ứng, thói quen..."></textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <button type="button" id="btnDeletePet" class="btn btn-outline-danger px-4 rounded-pill fw-bold hidden-delete-action">Xóa hồ sơ</button>
+                        <button type="button" class="btn btn-light px-4 rounded-pill fw-bold border" data-bs-dismiss="modal">Hủy bỏ</button>
+                        <button type="submit" class="btn btn-success px-5 rounded-pill fw-bold">Lưu hồ sơ</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const petModal = new bootstrap.Modal(document.getElementById('petModal'));
+        let currentPetId = 0;
+        let currentPetName = "";
+
+        // Hàm TÌM KIẾM THEO TÊN
+        function filterPets() {
+            let input = document.getElementById('searchInput').value.toLowerCase();
+            let cards = document.querySelectorAll('.pet-item');
+            cards.forEach(card => {
+                let name = card.getAttribute('data-name');
+                card.style.display = name.includes(input) ? 'flex' : 'none';
+            });
+        }
+
+        // MỞ MODAL THÊM
+        function openAddModal() {
+            document.getElementById('modalTitle').innerText = "Thêm bé thú cưng mới";
+            document.getElementById('formPetId').value = "";
+            document.getElementById('formPetName').value = "";
+            document.getElementById('formSpeciesId').value = "";
+            document.getElementById('formBreedId').innerHTML = '<option value="">Chọn giống</option>';
+            document.getElementById('formPetWeight').value = "";
+            document.getElementById('formPetNotes').value = "";
+            document.getElementById('btnDeletePet').style.display = 'none'; // Ẩn nút xóa
+            petModal.show();
+        }
+
+        // LOAD GIỐNG BẰNG AJAX
+        async function loadBreedsBySpecies(speciesId, selectedBreedId = null) {
+            const breedSelect = document.getElementById('formBreedId');
+            breedSelect.innerHTML = '<option value="">Đang tải...</option>';
+            if (!speciesId) { breedSelect.innerHTML = '<option value="">Chọn giống</option>'; return; }
+
+            try {
+                const response = await fetch(`/Pet/GetBreedsBySpecies?speciesId=${speciesId}`);
+                const breeds = await response.json();
+                let html = '<option value="">Chọn giống</option>';
+                breeds.forEach(b => {
+                    html += `<option value="${b.breedId}" ${selectedBreedId == b.breedId ? 'selected' : ''}>${b.breedName}</option>`;
+                });
+                breedSelect.innerHTML = html;
+            } catch (error) { breedSelect.innerHTML = '<option value="">Lỗi tải</option>'; }
+        }
+
+        // MỞ MODAL SỬA
+        async function openEditModal(petId) {
+            document.getElementById('modalTitle').innerText = "Chi tiết hồ sơ bé";
+            document.getElementById('btnDeletePet').style.display = 'inline-block'; // Hiện nút xóa
+            currentPetId = petId;
+
+            try {
+                const response = await fetch(`/Pet/GetPetDetail?id=${petId}`);
+                const data = await response.json();
+                currentPetName = data.name;
+
+                document.getElementById('formPetId').value = data.petId;
+                document.getElementById('formPetName').value = data.name;
+                document.getElementById('formSpeciesId').value = data.speciesId;
+                document.getElementById('formPetWeight').value = data.weight;
+                document.getElementById('formPetNotes').value = data.notes ?? "";
+
+                await loadBreedsBySpecies(data.speciesId, data.breedId);
+                petModal.show();
+            } catch (error) { alert("Lỗi tải thông tin!"); }
+        }
+
+        // BẤM NÚT XÓA BÊN TRONG MODAL
+        document.getElementById('btnDeletePet').addEventListener('click', function() {
+            if (confirm(`Sếp có chắc chắn muốn xóa hồ sơ của bé ${currentPetName} không?`)) {
+                fetch(`/Pet/DeletePet?id=${currentPetId}`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById(`pet-card-${currentPetId}`).remove();
+                        petModal.hide();
+                    } else alert(data.message);
+                });
+            }
+        });
+    </script>
+}

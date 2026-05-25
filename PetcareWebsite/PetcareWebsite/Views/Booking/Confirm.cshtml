@@ -1,0 +1,223 @@
+@{
+    ViewData["Title"] = "Xác nhận & Thanh toán | PetCare";
+    var service = ViewBag.SelectedService as PetcareWebsite.Models.ServiceCatalog;
+    var promotions = ViewBag.AvailablePromotions as IEnumerable<PetcareWebsite.Models.Promotion> ?? Enumerable.Empty<PetcareWebsite.Models.Promotion>();
+
+    // Ép kiểu an toàn chống lỗi NullReference (Màn hình vàng)
+    decimal vatAmount = ViewBag.VATAmount != null ? (decimal)ViewBag.VATAmount : 0m;
+    decimal totalAmount = ViewBag.TotalAmount != null ? (decimal)ViewBag.TotalAmount : 0m;
+
+    // Xử lý Ngày tháng an toàn
+    var bDate = ViewBag.BookingDate as DateTime?;
+    string dateValue = bDate.HasValue ? bDate.Value.ToString("yyyy-MM-dd") : "";
+    string dateDisplay = bDate.HasValue ? bDate.Value.ToString("dd/MM/yyyy") : "";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/booking/confirm.css" asp-append-version="true" />
+}
+
+<section class="booking-header-minimal">
+    <div class="container"><h2>Hoàn tất Lịch hẹn</h2></div>
+</section>
+
+<section class="booking-container confirm-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10 col-xl-8">
+
+                <div class="booking-steps d-none d-md-flex">
+                    <div class="step completed"><div class="step-num"><i class="fas fa-check"></i></div> Thông tin</div>
+                    <div class="step completed"><div class="step-num"><i class="fas fa-check"></i></div> Thời gian</div>
+                    <div class="step active"><div class="step-num">3</div> Xác nhận</div>
+                </div>
+
+                <div class="ticket-card">
+                    <form action="@Url.Action("Checkout", "Booking")" method="POST" id="confirmForm">
+                        @Html.AntiForgeryToken()
+
+                        <input type="hidden" name="customerId" value="@ViewBag.CustomerId" />
+                        <input type="hidden" name="customerName" value="@ViewBag.CustomerName" />
+                        <input type="hidden" name="customerPhone" value="@ViewBag.CustomerPhone" />
+                        <input type="hidden" name="customerEmail" value="@ViewBag.CustomerEmail" />
+                        <input type="hidden" name="petId" value="@ViewBag.PetId" />
+                        <input type="hidden" name="petType" value="@ViewBag.PetType" />
+                        <input type="hidden" name="petName" value="@ViewBag.PetName" />
+                        <input type="hidden" name="breedId" value="@ViewBag.BreedId" />
+                        <input type="hidden" name="petWeight" value="@ViewBag.PetWeight" />
+                        <input type="hidden" name="petAge" value="@ViewBag.PetAge" />
+                        <input type="hidden" name="petGender" value="@ViewBag.PetGender" />
+                        <input type="hidden" name="serviceId" value="@ViewBag.ServiceId" />
+                        <input type="hidden" name="petNote" value="@ViewBag.PetNote" />
+
+                        <input type="hidden" name="bookingDate" value="@dateValue" />
+                        <input type="hidden" name="bookingTime" value="@ViewBag.BookingTime" />
+
+                        <div class="text-center mb-4">
+                            <div class="d-inline-flex align-items-center justify-content-center bg-success text-white rounded-circle mb-3 confirm-check">
+                                <i class="fas fa-receipt"></i>
+                            </div>
+                            <h3 class="fw-800">Phiếu Xác Nhận Dịch Vụ</h3>
+                            <p class="text-muted">Sếp vui lòng kiểm tra lại thông tin và chọn phương thức thanh toán.</p>
+                        </div>
+
+                        <hr class="ticket-divider" />
+
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <h5 class="fw-800 mb-4"><i class="fas fa-user-circle text-green me-2"></i> Khách hàng</h5>
+                                <div class="info-group">
+                                    <label>Họ và tên</label><p><i class="fas fa-user"></i> @ViewBag.CustomerName</p>
+                                </div>
+                                <div class="info-group">
+                                    <label>Điện thoại</label><p><i class="fas fa-phone"></i> @ViewBag.CustomerPhone</p>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h5 class="fw-800 mb-4"><i class="fas fa-paw text-green me-2"></i> Bé Pet</h5>
+                                <div class="info-group">
+                                    <label>Thông tin bé</label><p><i class="fas fa-dog"></i> @ViewBag.PetName (@ViewBag.BreedName)</p>
+                                </div>
+                                <div class="info-group">
+                                    <label>Thời gian đón bé</label>
+                                    <p class="text-success fs-5"><i class="fas fa-calendar-alt"></i> @ViewBag.BookingTime - @dateDisplay</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="ticket-divider" />
+
+                        <h5 class="fw-800 mb-4"><i class="fas fa-tags text-green me-2"></i> Mã khuyến mãi</h5>
+                        <div class="promotion-box">
+                            <label class="form-label fw-bold text-muted mb-2" for="promotionId">Chọn ưu đãi áp dụng</label>
+                            <select class="form-select" name="promotionId" id="promotionId" disabled="@(!promotions.Any())">
+                                <option value="">Không sử dụng khuyến mãi</option>
+                                @foreach (var promotion in promotions)
+                                {
+                                    var discountLabel = promotion.DiscountType == "Percentage"
+                                        ? $"{promotion.DiscountValue:N0}%"
+                                        : $"{promotion.DiscountValue:N0} đ";
+                                    <option value="@promotion.PromotionId"
+                                            data-type="@promotion.DiscountType"
+                                            data-value="@promotion.DiscountValue.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-max="@((promotion.MaxDiscount ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))">
+                                        @promotion.PromoCode - giảm @discountLabel
+                                    </option>
+                                }
+                            </select>
+                            @if (promotions.Any())
+                            {
+                                <p class="promotion-hint" id="promotionHint">Chọn mã để xem số tiền ưu đãi.</p>
+                            }
+                            else
+                            {
+                                <p class="promotion-hint">Hiện chưa có mã phù hợp cho hóa đơn này.</p>
+                            }
+                        </div>
+
+                        <h5 class="fw-800 mb-4"><i class="fas fa-credit-card text-green me-2"></i> Chọn Phương Thức Thanh Toán</h5>
+                        <div class="row g-3 mb-5">
+                            <div class="col-6">
+                                <label class="payment-card active" onclick="selectPayment(this)">
+                                    <input type="radio" name="paymentMethodId" value="1" checked class="d-none">
+                                    <i class="fas fa-money-bill-wave text-green"></i>
+                                    <span class="fw-bold">Tiền mặt tại quầy</span>
+                                </label>
+                            </div>
+                            <div class="col-6">
+                                <label class="payment-card" onclick="selectPayment(this)">
+                                    <input type="radio" name="paymentMethodId" value="2" class="d-none">
+                                    <i class="fas fa-qrcode text-primary"></i>
+                                    <span class="fw-bold">Chuyển khoản (QR)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <h5 class="fw-800 mb-4"><i class="fas fa-file-invoice-dollar text-green me-2"></i> Chi tiết Hóa đơn</h5>
+                        <div class="cost-breakdown">
+                            <div class="cost-row">
+                                <span>Dịch vụ: @(service?.ServiceName ?? "Chưa xác định")</span>
+                                <strong>@((service?.BasePrice ?? 0).ToString("N0")) đ</strong>
+                            </div>
+                            <div class="cost-row">
+                                <span>Thuế VAT (10%)</span>
+                                <strong>@vatAmount.ToString("N0") đ</strong>
+                            </div>
+                            <div class="cost-row discount d-none" id="discountRow">
+                                <span>Khuyến mãi</span>
+                                <strong id="discountAmount">- 0 đ</strong>
+                            </div>
+                            <div class="cost-row total">
+                                <span>Thanh toán dự kiến</span>
+                                <span class="amount" id="payableAmount">@totalAmount.ToString("N0") đ</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-3 mt-5">
+                            <button type="button" onclick="history.back()" class="btn btn-light btn-lg px-4 fw-bold text-nowrap flex-shrink-0 btn-return">
+                                <i class="fas fa-arrow-left me-2"></i> Trở lại
+                            </button>
+                            <button type="submit" id="btnSubmit" class="btn btn-primary btn-lg w-100 fs-5 shadow-sm rounded-pill fw-bold">
+                                Chốt đơn & Hoàn tất <i class="fas fa-check-circle ms-2"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        function selectPayment(element) {
+            document.querySelectorAll(".payment-card").forEach(card => card.classList.remove("active"));
+            element.classList.add("active");
+            element.querySelector("input").checked = true;
+        }
+
+        const promotionSelect = document.getElementById('promotionId');
+        const invoiceTotal = @totalAmount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        const numberFormatter = new Intl.NumberFormat('vi-VN');
+
+        function updatePromotionAmount() {
+            if (!promotionSelect || !promotionSelect.value) {
+                document.getElementById('discountRow').classList.add('d-none');
+                document.getElementById('payableAmount').textContent = numberFormatter.format(invoiceTotal) + ' đ';
+                if (document.getElementById('promotionHint')) {
+                    document.getElementById('promotionHint').textContent = 'Chọn mã để xem số tiền ưu đãi.';
+                }
+                return;
+            }
+
+            const option = promotionSelect.options[promotionSelect.selectedIndex];
+            const type = option.dataset.type;
+            const value = Number(option.dataset.value || 0);
+            const maxDiscount = Number(option.dataset.max || 0);
+            let discount = type === 'Percentage' ? invoiceTotal * value / 100 : value;
+
+            if (type === 'Percentage' && maxDiscount > 0) {
+                discount = Math.min(discount, maxDiscount);
+            }
+
+            discount = Math.min(discount, invoiceTotal);
+            document.getElementById('discountAmount').textContent = '- ' + numberFormatter.format(discount) + ' đ';
+            document.getElementById('discountRow').classList.remove('d-none');
+            document.getElementById('payableAmount').textContent = numberFormatter.format(invoiceTotal - discount) + ' đ';
+            if (document.getElementById('promotionHint')) {
+                document.getElementById('promotionHint').textContent = 'Mã ' + option.text.split(' - ')[0] + ' đã được chọn.';
+            }
+        }
+
+        if (promotionSelect) {
+            promotionSelect.addEventListener('change', updatePromotionAmount);
+        }
+
+        document.getElementById('confirmForm').addEventListener('submit', function() {
+            const btn = document.getElementById('btnSubmit');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Đang chốt đơn...';
+            btn.classList.add('disabled');
+        });
+    </script>
+}

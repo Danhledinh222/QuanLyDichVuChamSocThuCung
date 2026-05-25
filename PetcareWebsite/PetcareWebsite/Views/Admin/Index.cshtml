@@ -1,0 +1,232 @@
+@model PetcareWebsite.ViewModels.AdminDashboardViewModel
+@using System.Text.Json
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Dashboard";
+    ViewData["AdminTitle"] = "Dashboard";
+    ViewData["AdminSubtitle"] = $"Hôm nay: {DateTime.Now:dd/MM/yyyy HH:mm}";
+}
+
+@functions {
+    private static string BookingStatusText(int statusId)
+    {
+        return statusId switch
+        {
+            1 => "Chờ xác nhận",
+            2 => "Đã xác nhận",
+            3 => "Đã hoàn thành",
+            4 => "Đã hủy",
+            5 => "Đã hết hạn",
+            6 => "Đang thực hiện",
+            _ => "Không xác định"
+        };
+    }
+
+    private static string BookingStatusClass(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "status-confirmed",
+            3 => "status-completed",
+            4 => "status-cancelled",
+            5 => "status-expired",
+            6 => "status-progress",
+            _ => "status-pending"
+        };
+    }
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/index.css" asp-append-version="true" />
+}
+
+<div class="stat-grid">
+    <div class="admin-panel stat-card">
+        <div>
+            <span>Lịch hẹn hôm nay</span>
+            <strong>@Model.TodayBookingCount</strong>
+            <small>@Model.PendingBookingCount lịch đang chờ xử lý</small>
+        </div>
+        <div class="stat-icon icon-blue"><i class="far fa-calendar-check"></i></div>
+    </div>
+    <div class="admin-panel stat-card">
+        <div>
+            <span>Khách hàng & thú cưng</span>
+            <strong>@Model.CustomerCount / @Model.PetCount</strong>
+            <small>Hồ sơ đang hoạt động</small>
+        </div>
+        <div class="stat-icon icon-green"><i class="fas fa-users"></i></div>
+    </div>
+    <div class="admin-panel stat-card">
+        <div>
+            <span>Doanh thu tháng này</span>
+            <strong>@Model.MonthlyRevenue.ToString("N0") đ</strong>
+            <small>Các khoản đã ghi nhận thanh toán</small>
+        </div>
+        <div class="stat-icon icon-orange"><i class="fas fa-coins"></i></div>
+    </div>
+    <div class="admin-panel stat-card">
+        <div>
+            <span>Cần xử lý</span>
+            <strong>@(Model.NewContactCount + Model.LowStockCount)</strong>
+            <small>@Model.NewContactCount liên hệ mới, @Model.LowStockCount vật tư thấp</small>
+        </div>
+        <div class="stat-icon icon-purple"><i class="fas fa-bell"></i></div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="admin-panel">
+        <div class="panel-header">
+            <h3>Lịch hẹn trong 7 ngày</h3>
+            <span>Booking trend</span>
+        </div>
+        <div class="chart-wrap"><canvas id="bookingChart"></canvas></div>
+    </div>
+    <div class="admin-panel">
+        <div class="panel-header">
+            <h3>Doanh thu 7 ngày</h3>
+            <span>Revenue trend</span>
+        </div>
+        <div class="chart-wrap"><canvas id="revenueChart"></canvas></div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="admin-panel">
+        <div class="panel-header">
+            <h3>Lịch hẹn gần đây</h3>
+            <a href="@Url.Action("Bookings", "Admin")">Quản lý lịch hẹn</a>
+        </div>
+        @if (!Model.RecentBookings.Any())
+        {
+            <div class="empty">Chưa có lịch hẹn nào.</div>
+        }
+        else
+        {
+            <ul class="activity-list">
+                @foreach (var booking in Model.RecentBookings)
+                {
+                    <li>
+                        <div class="item-icon"><i class="fas fa-paw"></i></div>
+                        <div class="item-body">
+                            <div class="booking-row">
+                                <div>
+                                    <h4>@booking.PetName - @booking.BookingCode</h4>
+                                    <p>@booking.CustomerName đặt @booking.ServiceName lúc @booking.BookingDate.ToString("dd/MM/yyyy HH:mm")</p>
+                                </div>
+                                <div class="booking-meta">
+                                    <span class="money">@booking.TotalAmount.ToString("N0") đ</span>
+                                    <span class="badge-soft @BookingStatusClass(booking.StatusId)">@BookingStatusText(booking.StatusId)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+
+    <div class="admin-panel">
+        <div class="panel-header">
+            <h3>Việc cần xử lý</h3>
+            <span>@(Model.NewContactCount + Model.LowStockCount) mục</span>
+        </div>
+        <ul class="task-list">
+            <li>
+                <div class="item-icon"><i class="far fa-envelope"></i></div>
+                <div class="item-body">
+                    <h4>@Model.NewContactCount tin nhắn liên hệ mới</h4>
+                    <p><a href="@Url.Action("Contacts", "Admin")">Mở trang Liên hệ</a> để đọc và phản hồi khách hàng.</p>
+                </div>
+            </li>
+            <li>
+                <div class="item-icon task-warning-icon"><i class="fas fa-triangle-exclamation"></i></div>
+                <div class="item-body">
+                    <h4>@Model.LowStockCount vật tư dưới mức tối thiểu</h4>
+                    <p>Kiểm tra tồn kho trước khi thực hiện dịch vụ.</p>
+                </div>
+            </li>
+            <li>
+                <div class="item-icon task-calendar-icon"><i class="far fa-calendar-plus"></i></div>
+                <div class="item-body">
+                    <h4>@Model.PendingBookingCount lịch cần xác nhận</h4>
+                    <p><a href="@Url.Action("Bookings", "Admin")">Mở trang Lịch hẹn</a> để cập nhật trạng thái đơn.</p>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+            Chart.defaults.color = '#6B7280';
+            Chart.defaults.scale.grid.color = '#F3F4F6';
+
+            const labels = @Html.Raw(JsonSerializer.Serialize(Model.WeekLabels));
+            const bookingData = @Html.Raw(JsonSerializer.Serialize(Model.WeeklyBookingCounts));
+            const revenueData = @Html.Raw(JsonSerializer.Serialize(Model.WeeklyRevenue));
+
+            new Chart(document.getElementById('bookingChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: bookingData,
+                        backgroundColor: '#2563EB',
+                        borderRadius: 5,
+                        barPercentage: 0.58
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 }, border: { display: false } },
+                        x: { grid: { display: false }, border: { color: '#E5E7EB' } }
+                    }
+                }
+            });
+
+            const revenueCanvas = document.getElementById('revenueChart');
+            const gradient = revenueCanvas.getContext('2d').createLinearGradient(0, 0, 0, 280);
+            gradient.addColorStop(0, 'rgba(16,185,129,0.22)');
+            gradient.addColorStop(1, 'rgba(16,185,129,0)');
+
+            new Chart(revenueCanvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: revenueData,
+                        borderColor: '#10B981',
+                        backgroundColor: gradient,
+                        borderWidth: 3,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#10B981',
+                        tension: 0.38,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            border: { display: false },
+                            ticks: { callback: value => Number(value).toLocaleString('vi-VN') + ' đ' }
+                        },
+                        x: { grid: { display: false }, border: { color: '#E5E7EB' } }
+                    }
+                }
+            });
+        });
+    </script>
+}

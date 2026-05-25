@@ -1,0 +1,108 @@
+@model PetcareWebsite.ViewModels.AdminContactsViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Contacts";
+    ViewData["AdminTitle"] = "Quản lý liên hệ";
+    ViewData["AdminSubtitle"] = "Theo dõi yêu cầu tư vấn và kết quả phản hồi khách hàng.";
+}
+
+@functions {
+    private static string StatusText(string status)
+    {
+        return status switch
+        {
+            "New" => "Mới",
+            "Read" => "Đã xem",
+            "Replied" => "Đã phản hồi",
+            _ => status
+        };
+    }
+
+    private static string StatusClass(string status)
+    {
+        return status switch
+        {
+            "Read" => "status-read",
+            "Replied" => "status-replied",
+            _ => "status-new"
+        };
+    }
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/contacts.css" asp-append-version="true" />
+}
+
+<div class="contact-summary">
+    <a class="admin-panel" href="@Url.Action("Contacts", "Admin")">
+        <span>Tất cả liên hệ</span><strong>@Model.TotalCount</strong>
+    </a>
+    <a class="admin-panel" href="@Url.Action("Contacts", "Admin", new { status = "New" })">
+        <span>Mới</span><strong>@Model.NewCount</strong>
+    </a>
+    <a class="admin-panel" href="@Url.Action("Contacts", "Admin", new { status = "Read" })">
+        <span>Đã xem</span><strong>@Model.ReadCount</strong>
+    </a>
+    <a class="admin-panel" href="@Url.Action("Contacts", "Admin", new { status = "Replied" })">
+        <span>Đã phản hồi</span><strong>@Model.RepliedCount</strong>
+    </a>
+</div>
+
+<div class="admin-panel">
+    <form method="get" action="@Url.Action("Contacts", "Admin")" class="filter-bar">
+        <input class="form-control" type="search" name="search" value="@Model.Search" placeholder="Tìm họ tên, số điện thoại hoặc email">
+        <select class="form-select contact-status-filter" name="status">
+            <option value="">Tất cả trạng thái</option>
+            <option value="New" selected="@(Model.Status == "New" ? "selected" : null)">Mới</option>
+            <option value="Read" selected="@(Model.Status == "Read" ? "selected" : null)">Đã xem</option>
+            <option value="Replied" selected="@(Model.Status == "Replied" ? "selected" : null)">Đã phản hồi</option>
+        </select>
+        <button class="btn-filter" type="submit"><i class="fas fa-magnifying-glass me-2"></i>Lọc</button>
+        <a class="clear-link" href="@Url.Action("Contacts", "Admin")">Xóa lọc</a>
+    </form>
+
+    @if (!Model.Messages.Any())
+    {
+        <div class="empty-state">
+            <i class="far fa-envelope-open fs-2 mb-3 d-block"></i>
+            Không có tin nhắn liên hệ phù hợp.
+        </div>
+    }
+    else
+    {
+        <ul class="message-list">
+            @foreach (var message in Model.Messages)
+            {
+                <li class="message-item">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <div class="customer-name">@message.FullName</div>
+                            <span class="badge-soft @StatusClass(message.Status)">@StatusText(message.Status)</span>
+                        </div>
+                        <div class="contact-line"><i class="fas fa-phone me-2"></i>@message.PhoneNumber</div>
+                        <div class="contact-line"><i class="far fa-envelope me-2"></i>@(message.Email ?? "Không có email")</div>
+                        <div class="contact-line"><i class="far fa-clock me-2"></i>@message.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
+                    </div>
+
+                    <div>
+                        <div class="topic">@(message.Topic ?? "Tư vấn dịch vụ")</div>
+                        <p class="message-text">@message.Message</p>
+                    </div>
+
+                    <form class="message-action" method="post" action="@Url.Action("UpdateContactStatus", "Admin")">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="contactMessageId" value="@message.ContactMessageId">
+                        <select class="form-select" name="status">
+                            <option value="New" selected="@(message.Status == "New" ? "selected" : null)">Mới</option>
+                            <option value="Read" selected="@(message.Status == "Read" ? "selected" : null)">Đã xem</option>
+                            <option value="Replied" selected="@(message.Status == "Replied" ? "selected" : null)">Đã phản hồi</option>
+                        </select>
+                        <textarea class="form-control" name="adminNote" placeholder="Ghi chú phản hồi...">@message.AdminNote</textarea>
+                        <button class="save-btn" type="submit"><i class="fas fa-check me-2"></i>Lưu xử lý</button>
+                    </form>
+                </li>
+            }
+        </ul>
+    }
+</div>
