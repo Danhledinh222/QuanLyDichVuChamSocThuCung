@@ -1,0 +1,204 @@
+@model IEnumerable<PetcareWebsite.Models.ServiceCatalog>
+
+@{
+    ViewData["Title"] = "Dịch Vụ | PetCare - Spa & Cắt tỉa lông thú cưng";
+
+    // 1. Dò tìm gói VIP (Tìm chữ VIP, không có thì lấy gói đắt nhất)
+    var vipService = Model.FirstOrDefault(s => s.ServiceName.ToUpper().Contains("VIP"))
+                     ?? Model.OrderByDescending(s => s.BasePrice).FirstOrDefault();
+
+    // 2. Lọc danh sách các dịch vụ còn lại (Không chứa gói VIP)
+    var regularServices = Model.Where(s => s.ServiceId != vipService?.ServiceId).ToList();
+
+    // Khởi tạo các mảng màu, icon và hình ảnh ngẫu nhiên
+    string[] icons = { "fa-cut", "fa-stethoscope", "fa-bath", "fa-hotel", "fa-bone", "fa-tooth" };
+    string[] tags = { "tag-blue", "tag-red", "tag-teal", "tag-orange", "tag-purple", "tag-pink" };
+    string[] images = {
+        "/images/pets/pet-care.jpg",
+        "/images/services/catalog-2.jpg",
+        "/images/services/catalog-3.jpg",
+        "/images/services/catalog-4.jpg"
+    };
+    int counter = 0;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/service/index.css" asp-append-version="true" />
+}
+
+<section class="services-hero">
+    <div class="container">
+        <span class="badge bg-light text-success border border-success p-2 px-3 rounded-pill mb-3">Khám phá Dịch Vụ</span>
+        <h1>Đánh thức vẻ đẹp tiềm ẩn <br />của thú cưng</h1>
+        <p>Từ những buổi cắt tỉa chải chuốt cơ bản đến những liệu trình Spa phục hồi chuyên sâu. Khám phá các dịch vụ đẳng cấp nhất của chúng tôi dưới đây.</p>
+        <a href="#all-services" class="btn btn-primary btn-lg px-5 rounded-pill">Xem tất cả dịch vụ <i class="fas fa-arrow-down ms-2"></i></a>
+    </div>
+</section>
+
+@if (vipService != null)
+{
+    <section class="py-5 pb-0">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="fw-bold fs-1">🔥 Dịch Vụ Nổi Bật Nhất</h2>
+                <p class="text-muted">Lựa chọn hàng đầu được hàng ngàn khách hàng yêu thích</p>
+            </div>
+            <div class="featured-service">
+                <span class="featured-badge"><i class="fas fa-crown me-1"></i> Gói @(vipService.Category?.CategoryName ?? "Hoàng Gia")</span>
+                <div class="row align-items-center">
+                    <div class="col-lg-6">
+                        <div class="featured-img-wrap">
+                            <img src="~/images/hero/service-spa.jpg" alt="@vipService.ServiceName" />
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="featured-content">
+                            <h3 class="fw-bold text-dark">@vipService.ServiceName</h3>
+                            <p class="text-muted">@vipService.Description</p>
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Trải nghiệm không gian thư giãn yên tĩnh, giảm lo âu cho thú cưng.</li>
+                                <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Được thực hiện bởi các thợ cả có tay nghề cao nhất hệ thống.</li>
+                            </ul>
+                            <div class="price-tag-featured">@vipService.BasePrice.ToString("N0") VNĐ <span>/ lần</span></div>
+                            <div class="d-flex gap-3 flex-wrap">
+                                <a href="@Url.Action("Detail", "Service", new { id = vipService.ServiceId })" class="btn btn-dark px-4 py-3 rounded-pill fw-bold text-decoration-none">
+                                    Xem chi tiết
+                                </a>
+                                <a href="@Url.Action("Index", "Booking", new { serviceId = vipService.ServiceId })" class="btn btn-primary px-4 py-3 rounded-pill fw-bold text-decoration-none">
+                                    Đặt gói VIP ngay
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+}
+
+<section id="all-services" class="py-5 bg-white">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="fw-bold mb-2 fs-1">Danh Mục Dịch Vụ</h2>
+            <p class="text-muted mb-5 mx-auto service-copy">Bất kể thú cưng của bạn đang cần gì, chúng tôi đều có một dịch vụ được thiết kế hoàn hảo để đáp ứng.</p>
+        </div>
+
+        <div class="row g-4 text-start" id="serviceGrid">
+            @foreach (var item in regularServices)
+            {
+                var currentTag = tags[counter % tags.Length];
+                var currentIcon = icons[counter % icons.Length];
+                var currentImg = images[counter % images.Length];
+                counter++;
+
+                <div class="col-md-6 col-lg-3 service-col">
+                    <div class="card service-card">
+                        <div class="service-img-wrap">
+                            <span class="service-icon"><i class="fas @currentIcon"></i></span>
+                            <span class="service-tag @currentTag">@(item.Category?.CategoryName ?? "Chăm sóc")</span>
+                            <img src="@currentImg" alt="@item.ServiceName" />
+                        </div>
+                        <div class="card-body">
+                            <h5 class="fw-bold">@item.ServiceName</h5>
+                            <p class="text-muted service-description">@item.Description</p>
+
+                            <div class="service-meta mt-auto">
+                                <span class="time text-muted"><i class="far fa-clock"></i> Liên hệ</span>
+                                <span class="price">@item.BasePrice.ToString("N0") VNĐ</span>
+                            </div>
+
+                            <a href="@Url.Action("Detail", "Service", new { id = item.ServiceId })" class="btn btn-dark w-100 rounded-pill py-2 fw-bold text-decoration-none text-center">
+                                Xem chi tiết
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="text-center mt-5" id="loadMoreContainer">
+            <button id="btnLoadMore" class="btn btn-outline-primary btn-lg px-5 rounded-pill fw-bold btn-load-more">
+                Xem thêm dịch vụ <i class="fas fa-spinner ms-2"></i>
+            </button>
+        </div>
+    </div>
+</section>
+
+<section class="process-section">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="fw-bold mb-3 fs-1 text-white">Quy Trình 4 Bước Chuẩn Mực</h2>
+            <p class="text-light opacity-75 mx-auto service-copy">Minh bạch và an toàn tuyệt đối là tôn chỉ của chúng tôi.</p>
+        </div>
+        <div class="row mt-5">
+            <div class="col-md-3">
+                <div class="process-step">
+                    <div class="step-number">1</div>
+                    <h4 class="text-white">Tiếp nhận & Đánh giá</h4>
+                    <p class="text-light opacity-75">Kiểm tra tình trạng sức khỏe ban đầu.</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="process-step">
+                    <div class="step-number">2</div>
+                    <h4 class="text-white">Làm quen thư giãn</h4>
+                    <p class="text-light opacity-75">Nghe nhạc êm dịu giảm căng thẳng.</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="process-step">
+                    <div class="step-number">3</div>
+                    <h4 class="text-white">Thực hiện dịch vụ</h4>
+                    <p class="text-light opacity-75">Cắt tỉa bằng dụng cụ vô trùng 100%.</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="process-step">
+                    <div class="step-number">4</div>
+                    <h4 class="text-white">Bàn giao</h4>
+                    <p class="text-light opacity-75">Chụp ảnh check-in và trao trả ba mẹ.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const boxes = document.querySelectorAll('.service-col');
+            const loadMoreBtn = document.getElementById('btnLoadMore');
+            const loadMoreContainer = document.getElementById('loadMoreContainer');
+
+            // THAY ĐỔI: Khởi tạo hiển thị 8 thẻ đầu tiên
+            let currentItem = 8;
+
+            function showItems() {
+                for (let i = 0; i < currentItem && i < boxes.length; i++) {
+                    boxes[i].classList.add('show');
+                }
+
+                // Ẩn nút "Xem thêm" nếu số thẻ đã hết
+                if (currentItem >= boxes.length) {
+                    loadMoreContainer.style.display = 'none';
+                }
+            }
+
+            // Gọi chạy lần đầu tiên
+            showItems();
+
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', function () {
+                    const icon = this.querySelector('.fa-spinner');
+                    icon.classList.add('fa-spin'); // Tạo hiệu ứng load xoay tròn
+
+                    setTimeout(() => {
+                        currentItem += 4; // Bấm nút thì load thêm 4 thẻ
+                        showItems();
+                        icon.classList.remove('fa-spin');
+                    }, 400); // Đợi 0.4s giả lập tải mạng
+                });
+            }
+        });
+    </script>
+}

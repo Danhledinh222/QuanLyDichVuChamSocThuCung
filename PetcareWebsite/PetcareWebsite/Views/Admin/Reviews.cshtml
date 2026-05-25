@@ -1,0 +1,119 @@
+@model PetcareWebsite.ViewModels.AdminReviewsViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Reviews";
+    ViewData["AdminTitle"] = "Quản lý đánh giá";
+    ViewData["AdminSubtitle"] = "Đọc phản hồi dịch vụ, trả lời khách hàng và kiểm soát đánh giá được hiển thị.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/reviews.css" asp-append-version="true" />
+}
+
+<div class="review-summary">
+    <a class="admin-panel summary-item" href="@Url.Action("Reviews", "Admin")">
+        <span>Tất cả</span><strong>@Model.TotalCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Reviews", "Admin", new { status = "Visible" })">
+        <span>Đang hiển thị</span><strong>@Model.VisibleCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Reviews", "Admin", new { status = "Hidden" })">
+        <span>Đã ẩn</span><strong>@Model.HiddenCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Reviews", "Admin", new { status = "AwaitingReply" })">
+        <span>Chưa phản hồi</span><strong>@Model.AwaitingReplyCount</strong>
+    </a>
+    <div class="admin-panel summary-item">
+        <span>Điểm trung bình</span><strong class="stars-average">@Model.AverageRating.ToString("0.0") <i class="fas fa-star fs-6"></i></strong>
+    </div>
+</div>
+
+<div class="admin-panel">
+    <form method="get" action="@Url.Action("Reviews", "Admin")" class="filter-bar">
+        <input class="form-control" type="search" name="search" value="@Model.Search" placeholder="Tìm khách hàng, dịch vụ hoặc nội dung đánh giá">
+        <select class="form-select rating-filter" name="rating">
+            <option value="">Tất cả sao</option>
+            @for (var star = 5; star >= 1; star--)
+            {
+                <option value="@star" selected="@(Model.Rating == star ? "selected" : null)">@star sao</option>
+            }
+        </select>
+        <select class="form-select review-status-filter" name="status">
+            <option value="">Tất cả trạng thái</option>
+            <option value="Visible" selected="@(Model.Status == "Visible" ? "selected" : null)">Đang hiển thị</option>
+            <option value="Hidden" selected="@(Model.Status == "Hidden" ? "selected" : null)">Đã ẩn</option>
+            <option value="AwaitingReply" selected="@(Model.Status == "AwaitingReply" ? "selected" : null)">Chưa phản hồi</option>
+            <option value="Replied" selected="@(Model.Status == "Replied" ? "selected" : null)">Đã phản hồi</option>
+        </select>
+        <button class="btn-filter" type="submit"><i class="fas fa-magnifying-glass me-2"></i>Lọc</button>
+        <a class="clear-link" href="@Url.Action("Reviews", "Admin")">Xóa lọc</a>
+    </form>
+
+    @if (!Model.Reviews.Any())
+    {
+        <div class="empty-state">
+            <i class="far fa-star fs-2 mb-3 d-block"></i>
+            Chưa có đánh giá phù hợp.
+        </div>
+    }
+    else
+    {
+        <ul class="review-list">
+            @foreach (var review in Model.Reviews)
+            {
+                var tags = string.IsNullOrWhiteSpace(review.ReviewTags)
+                    ? Enumerable.Empty<string>()
+                    : review.ReviewTags.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(tag => tag.Trim());
+                <li class="review-item">
+                    <div>
+                        <div class="d-flex gap-2 align-items-center flex-wrap mb-2">
+                            <span class="customer-name">@review.Customer.FullName</span>
+                            <span class="state @(review.IsVisible != false ? "visible" : "hidden")">
+                                @(review.IsVisible != false ? "Hiển thị" : "Đã ẩn")
+                            </span>
+                        </div>
+                        <div class="muted-line"><i class="fas fa-phone me-2"></i>@review.Customer.PhoneNumber</div>
+                        <div class="muted-line"><i class="far fa-calendar me-2"></i>@(review.CreatedAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</div>
+                        <div class="muted-line"><i class="fas fa-receipt me-2"></i>@review.BookingDetail.Booking.BookingCode</div>
+                    </div>
+
+                    <div>
+                        <div class="service-name">@review.BookingDetail.Service.ServiceName - @(review.BookingDetail.Pet?.Name ?? "Thú cưng")</div>
+                        <div class="stars" aria-label="@review.Rating sao">
+                            @for (var star = 1; star <= 5; star++)
+                            {
+                                <i class="fas fa-star @(star <= review.Rating ? "active" : "")"></i>
+                            }
+                        </div>
+                        <p class="review-text">@(string.IsNullOrWhiteSpace(review.Content) ? "Khách hàng không nhập nội dung đánh giá." : review.Content)</p>
+                        @if (tags.Any())
+                        {
+                            <div class="tag-list">
+                                @foreach (var tag in tags)
+                                {
+                                    <span class="tag">@tag</span>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <form class="moderation-form" method="post" action="@Url.Action("UpdateReviewModeration", "Admin")">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="reviewId" value="@review.ReviewId">
+                        <input type="hidden" name="search" value="@Model.Search">
+                        <input type="hidden" name="rating" value="@Model.Rating">
+                        <input type="hidden" name="status" value="@Model.Status">
+                        <textarea class="form-control" name="storeReply" maxlength="1000" placeholder="Phản hồi của PetCare gửi tới khách hàng...">@review.StoreReply</textarea>
+                        <label class="visible-switch">
+                            <input type="checkbox" name="isVisible" value="true" checked="@(review.IsVisible != false)">
+                            <input type="hidden" name="isVisible" value="false">
+                            Cho phép hiển thị đánh giá
+                        </label>
+                        <button class="save-btn" type="submit"><i class="fas fa-check me-2"></i>Lưu xử lý</button>
+                    </form>
+                </li>
+            }
+        </ul>
+    }
+</div>

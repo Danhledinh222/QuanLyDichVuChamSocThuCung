@@ -1,0 +1,121 @@
+@model PetcareWebsite.ViewModels.AdminInventoryQuotasViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Inventory";
+    ViewData["AdminTitle"] = "Định mức vật tư dịch vụ";
+    ViewData["AdminSubtitle"] = "Khai báo số lượng vật tư sẽ xuất tự động khi lịch hẹn được xác nhận hoàn thành.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/inventoryquotas.css" asp-append-version="true" />
+}
+
+<div class="top-actions">
+    <a class="back-link" href="@Url.Action("Inventory", "Admin")">
+        <i class="fas fa-arrow-left"></i> Về kho vật tư
+    </a>
+</div>
+
+<div class="admin-panel quota-form-panel">
+    <h3>Thêm định mức</h3>
+    <form method="post" action="@Url.Action("SaveInventoryQuota", "Admin")">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly"></div>
+        <div class="create-grid">
+            <div>
+                <label class="form-label" asp-for="ServiceId">Dịch vụ</label>
+                <select class="form-select" asp-for="ServiceId">
+                    <option value="0">Chọn dịch vụ...</option>
+                    @foreach (var service in Model.Services)
+                    {
+                        <option value="@service.ServiceId">@service.ServiceName</option>
+                    }
+                </select>
+                <span asp-validation-for="ServiceId"></span>
+            </div>
+            <div>
+                <label class="form-label" asp-for="SupplyId">Vật tư sử dụng</label>
+                <select class="form-select" asp-for="SupplyId">
+                    <option value="0">Chọn vật tư...</option>
+                    @foreach (var supply in Model.Supplies)
+                    {
+                        <option value="@supply.SupplyId">@supply.SupplyName (@supply.Unit)</option>
+                    }
+                </select>
+                <span asp-validation-for="SupplyId"></span>
+            </div>
+            <div>
+                <label class="form-label" asp-for="QuantityUsed">Số lượng dùng</label>
+                <input class="form-control" asp-for="QuantityUsed" type="number" min="1" max="1000000" step="1">
+                <span asp-validation-for="QuantityUsed"></span>
+            </div>
+            <button class="btn-save" type="submit"><i class="far fa-floppy-disk"></i> Lưu định mức</button>
+        </div>
+    </form>
+    <div class="rule-note">
+        Khi admin chuyển một lịch sang trạng thái đã hoàn thành, hệ thống kiểm tra tồn và hạn sử dụng trước, sau đó CSDL tự trừ đúng số lượng theo định mức này.
+    </div>
+</div>
+
+<div class="admin-panel">
+    <h3 class="list-heading">Định mức đang áp dụng</h3>
+    @if (!Model.Quotas.Any())
+    {
+        <div class="empty-state">Chưa có định mức vật tư cho dịch vụ nào.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table quota-table">
+                <thead>
+                    <tr>
+                        <th>Dịch vụ</th>
+                        <th>Vật tư</th>
+                        <th>Tồn hiện tại</th>
+                        <th>Số lượng dùng / lần</th>
+                        <th>Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var quota in Model.Quotas)
+                    {
+                        <tr>
+                            <td>
+                                <div class="item-name">@quota.Service.ServiceName</div>
+                                <div class="muted-line">@(quota.Service.IsActive == true ? "Đang nhận lịch" : "Tạm ngừng")</div>
+                            </td>
+                            <td>
+                                <div class="item-name">@quota.Supply.SupplyName</div>
+                                <div class="muted-line">@quota.Supply.Unit</div>
+                            </td>
+                            <td>@((quota.Supply.StockQuantity ?? 0).ToString("N0")) @quota.Supply.Unit</td>
+                            <td>@((quota.QuantityUsed ?? 1).ToString("N0")) @quota.Supply.Unit</td>
+                            <td>
+                                <div class="row-actions">
+                                    <form class="row-edit" method="post" action="@Url.Action("SaveInventoryQuota", "Admin")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="ServiceId" value="@quota.ServiceId">
+                                        <input type="hidden" name="SupplyId" value="@quota.SupplyId">
+                                        <input class="form-control" type="number" name="QuantityUsed" value="@(quota.QuantityUsed ?? 1)" min="1" max="1000000" step="1" aria-label="Số lượng dùng">
+                                        <button class="icon-button" type="submit" title="Lưu định mức"><i class="far fa-floppy-disk"></i></button>
+                                    </form>
+                                    <form method="post" action="@Url.Action("DeleteInventoryQuota", "Admin")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="serviceId" value="@quota.ServiceId">
+                                        <input type="hidden" name="supplyId" value="@quota.SupplyId">
+                                        <button class="icon-button delete" type="submit" title="Xóa định mức"><i class="far fa-trash-can"></i></button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,213 @@
+@model IEnumerable<PetcareWebsite.Models.ServiceReview>
+@using System.Linq
+
+@{
+    ViewData["Title"] = "Đánh giá dịch vụ | PetCare";
+    var customer = ViewBag.Customer as PetcareWebsite.Models.Customer;
+    var pendingReviewDetails = ViewBag.PendingReviewDetails as IEnumerable<PetcareWebsite.Models.BookingDetail> ?? Enumerable.Empty<PetcareWebsite.Models.BookingDetail>();
+    int reviewedCount = ViewBag.ReviewedCount ?? 0;
+    int pendingCount = ViewBag.PendingCount ?? 0;
+    decimal averageRating = Convert.ToDecimal(ViewBag.AverageRating ?? 0);
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/profile/reviews.css" asp-append-version="true" />
+}
+
+<div class="profile-wrapper">
+    <div class="container">
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success fw-bold text-center border-0 rounded-4 shadow-sm mb-4">
+                <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            </div>
+        }
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger fw-bold text-center border-0 rounded-4 shadow-sm mb-4">
+                <i class="fas fa-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
+            </div>
+        }
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="profile-card text-center">
+                    <div class="profile-summary">
+                        <div class="avatar-container">
+                            <img src="~/images/common/user-avatar.jpg" alt="Avatar">
+                        </div>
+                        <h4>@customer?.FullName</h4>
+                        <p>@customer?.Email</p>
+                        <span class="badge-status">Thành viên Tiêu chuẩn</span>
+                    </div>
+                    <div class="quick-actions-grid">
+                        <a href="@Url.Action("Index", "Pet")" class="action-card"><i class="fas fa-paw"></i><span>Thú cưng</span></a>
+                        <a href="@Url.Action("Detail", "Booking")" class="action-card"><i class="far fa-calendar-check"></i><span>Lịch hẹn</span></a>
+                        <a href="@Url.Action("Billing", "Profile")" class="action-card"><i class="far fa-credit-card"></i><span>Thanh toán</span></a>
+                        <a href="@Url.Action("Reviews", "Profile")" class="action-card active"><i class="far fa-star"></i><span>Đánh giá</span></a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="profile-card">
+                    <div class="section-header">
+                        <h3>Đánh giá dịch vụ</h3>
+                    </div>
+
+                    <div class="review-stats">
+                        <div class="review-stat">
+                            <strong>@reviewedCount</strong>
+                            <span>Đã đánh giá</span>
+                        </div>
+                        <div class="review-stat">
+                            <strong>@pendingCount</strong>
+                            <span>Chờ đánh giá</span>
+                        </div>
+                        <div class="review-stat">
+                            <strong>@averageRating.ToString("0.0")</strong>
+                            <span>Điểm trung bình</span>
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 text-green"><i class="fas fa-pen-nib me-2"></i>Chờ bạn đánh giá</h5>
+                    @if (!pendingReviewDetails.Any())
+                    {
+                        <div class="empty-state mb-4">
+                            <i class="far fa-check-circle"></i>
+                            <h5 class="fw-bold">Không có dịch vụ chờ đánh giá</h5>
+                            <p class="text-muted mb-0">Các dịch vụ đã hoàn thành sẽ xuất hiện tại đây để bạn đánh giá.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        foreach (var detail in pendingReviewDetails)
+                        {
+                            <div class="pending-card">
+                                <div>
+                                    <div class="service-name">@detail.Service?.ServiceName</div>
+                                    <div class="service-meta">
+                                        <i class="fas fa-paw me-1"></i> Bé: @(detail.Pet?.Name ?? "Thú cưng")
+                                        &nbsp;|&nbsp;
+                                        <i class="far fa-check-circle me-1"></i> Hoàn thành: @detail.Booking.BookingDate.ToString("dd/MM/yyyy")
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-write" data-bs-toggle="modal" data-bs-target="#reviewModal-@detail.BookingDetailId">
+                                    <i class="fas fa-star me-2"></i>Đánh giá ngay
+                                </button>
+                            </div>
+
+                            <div class="modal fade" id="reviewModal-@detail.BookingDetailId" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content border-0 p-3 review-dialog">
+                                        <div class="modal-header border-0 pb-0">
+                                            <h5 class="modal-title fw-bold fs-4 text-center w-100">Đánh giá dịch vụ</h5>
+                                            <button type="button" class="btn-close review-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form asp-action="SaveReview" asp-controller="Profile" method="post">
+                                            <div class="modal-body p-4 text-center">
+                                                <input type="hidden" name="bookingDetailId" value="@detail.BookingDetailId" />
+                                                <p class="text-muted mb-4">
+                                                    Bạn cảm thấy thế nào về dịch vụ <strong class="text-dark">@detail.Service?.ServiceName</strong>?
+                                                </p>
+                                                <div class="rating-picker mb-4">
+                                                    @for (int star = 5; star >= 1; star--)
+                                                    {
+                                                        <input type="radio" id="rating-pending-@detail.BookingDetailId-@star" name="rating" value="@star" checked="@(star == 5)" />
+                                                        <label for="rating-pending-@detail.BookingDetailId-@star"><i class="fas fa-star"></i></label>
+                                                    }
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    @{
+                                                        string[] tagOptions = { "Nhân viên thân thiện", "Làm rất êm", "Đúng giờ", "Bé thoải mái", "Không gian sạch" };
+                                                    }
+                                                    @foreach (var tag in tagOptions)
+                                                    {
+                                                        <label class="tag-option">
+                                                            <input type="checkbox" name="reviewTags" value="@tag" />
+                                                            @tag
+                                                        </label>
+                                                    }
+                                                </div>
+
+                                                <textarea class="form-control" name="content" rows="4" maxlength="1000" placeholder="Chia sẻ thêm trải nghiệm của bạn..."></textarea>
+                                                <button type="submit" class="btn btn-primary w-100 mt-3">Gửi đánh giá</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    <h5 class="fw-bold mt-5 mb-3"><i class="fas fa-history me-2 text-muted"></i>Nhật ký đánh giá</h5>
+                    @if (!Model.Any())
+                    {
+                        <div class="empty-state">
+                            <i class="far fa-star"></i>
+                            <h5 class="fw-bold">Bạn chưa có đánh giá nào</h5>
+                            <p class="text-muted mb-0">Sau khi đánh giá dịch vụ, lịch sử đánh giá sẽ xuất hiện tại đây.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        foreach (var review in Model)
+                        {
+                            var detail = review.BookingDetail;
+                            var tags = string.IsNullOrWhiteSpace(review.ReviewTags)
+                                ? Enumerable.Empty<string>()
+                                : review.ReviewTags.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(tag => tag.Trim());
+
+                            <div class="review-card">
+                                <div class="d-flex justify-content-between align-items-start gap-3 mb-2 flex-wrap">
+                                    <div>
+                                        <h5 class="fw-bold m-0 text-dark">@detail.Service?.ServiceName</h5>
+                                        <div class="text-muted small fw-semibold mt-1">
+                                            <i class="fas fa-paw me-1"></i>@(detail.Pet?.Name ?? "Thú cưng")
+                                            <span class="mx-2">|</span>
+                                            <i class="far fa-calendar me-1"></i>@detail.Booking.BookingDate.ToString("dd/MM/yyyy")
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                                        <span class="text-muted small fw-semibold">@(review.CreatedAt?.ToString("dd/MM/yyyy") ?? "")</span>
+                                        @if (review.IsVisible == false)
+                                        {
+                                            <span class="visibility-pill">Đang ẩn</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="stars">
+                                    @for (int star = 1; star <= 5; star++)
+                                    {
+                                        <i class="fas fa-star @(star <= review.Rating ? "active" : "")"></i>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(review.Content))
+                                {
+                                    <p class="review-text">@review.Content</p>
+                                }
+                                @if (tags.Any())
+                                {
+                                    <div class="review-tags">
+                                        @foreach (var tag in tags)
+                                        {
+                                            <span class="review-tag-pill">@tag</span>
+                                        }
+                                    </div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(review.StoreReply))
+                                {
+                                    <div class="store-reply">
+                                        <h6><i class="fas fa-heart"></i> PetCare phản hồi</h6>
+                                        <p>@review.StoreReply</p>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

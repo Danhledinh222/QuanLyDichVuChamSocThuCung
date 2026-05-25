@@ -1,0 +1,80 @@
+@model PetcareWebsite.ViewModels.AdminSupplyEditorViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Inventory";
+    ViewData["AdminTitle"] = Model.IsEditing ? "Cập nhật vật tư" : "Thêm vật tư";
+    ViewData["AdminSubtitle"] = "Thông tin danh mục và ngưỡng cảnh báo kho.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/supplyform.css" asp-append-version="true" />
+}
+
+<div class="editor-shell">
+    <div class="admin-panel editor-panel">
+        <h3 class="editor-title">Thông tin vật tư</h3>
+        <form method="post" action="@Url.Action("SaveSupply", "Admin")">
+            @Html.AntiForgeryToken()
+            <input asp-for="SupplyId" type="hidden">
+            <div asp-validation-summary="ModelOnly"></div>
+
+            <div class="row g-4">
+                <div class="col-md-8">
+                    <label class="form-label" asp-for="SupplyName">Tên vật tư</label>
+                    <input class="form-control" asp-for="SupplyName" maxlength="100" placeholder="Ví dụ: Sữa tắm khử mùi">
+                    <span asp-validation-for="SupplyName"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="Unit">Đơn vị tính</label>
+                    <input class="form-control" asp-for="Unit" maxlength="20" placeholder="Chai, viên, liều">
+                    <span asp-validation-for="Unit"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="MinStockLevel">Mức tồn tối thiểu</label>
+                    <input class="form-control" asp-for="MinStockLevel" type="number" min="0" max="1000000" step="1">
+                    <span asp-validation-for="MinStockLevel"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="ExpiryDate">Hạn sử dụng</label>
+                    <input class="form-control" asp-for="ExpiryDate" type="date">
+                    <span asp-validation-for="ExpiryDate"></span>
+                </div>
+            </div>
+
+            <div class="editor-actions">
+                <a class="btn-cancel" href="@Url.Action("Inventory", "Admin")">Hủy</a>
+                <button class="btn-save" type="submit"><i class="far fa-floppy-disk"></i> Lưu vật tư</button>
+            </div>
+        </form>
+    </div>
+
+    <aside>
+        @if (Model.IsEditing)
+        {
+            <div class="admin-panel side-box">
+                <h3>Dữ liệu kho</h3>
+                <div class="metric-line">
+                    <span>Tồn hiện tại</span>
+                    <strong>@Model.StockQuantity.ToString("N0") @Model.Unit</strong>
+                </div>
+                <div class="metric-line">
+                    <span>Giao dịch kho</span>
+                    <strong>@Model.TransactionCount</strong>
+                </div>
+            </div>
+        }
+        <div class="admin-panel side-box">
+            <h3>Quy tắc tồn kho</h3>
+            <div class="rule-note">
+                Số lượng tồn không chỉnh trực tiếp tại đây. Admin dùng thao tác nhập kho để tạo lịch sử giao dịch rõ ràng.
+                <br><br>
+                Hạn sử dụng và mức tồn tối thiểu được dùng để cảnh báo trước khi thực hiện dịch vụ.
+            </div>
+        </div>
+    </aside>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

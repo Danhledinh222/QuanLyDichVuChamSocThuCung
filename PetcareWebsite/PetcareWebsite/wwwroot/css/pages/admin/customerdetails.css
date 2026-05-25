@@ -1,0 +1,246 @@
+.details-command {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .command-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-command {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 46px;
+            padding: 0 17px;
+            border: 1px solid var(--admin-line);
+            border-radius: 8px;
+            color: var(--admin-ink);
+            background: #fff;
+            text-decoration: none;
+            font-weight: 800;
+        }
+
+        .btn-command.primary {
+            color: #fff;
+            border-color: var(--admin-blue);
+            background: var(--admin-blue);
+        }
+
+        .btn-command.lock {
+            color: #B91C1C;
+            border-color: #FECACA;
+            background: #FEF2F2;
+        }
+
+        .btn-command.unlock {
+            color: #047857;
+            border-color: #A7F3D0;
+            background: #ECFDF5;
+        }
+
+        .customer-overview {
+            display: grid;
+            grid-template-columns: minmax(280px, 1.25fr) repeat(3, minmax(140px, 0.6fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .profile-panel {
+            padding: 20px;
+        }
+
+        .profile-title {
+            display: flex;
+            align-items: start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 13px;
+        }
+
+        .profile-title h3 {
+            margin: 0;
+            font-size: 1.16rem;
+            font-weight: 900;
+        }
+
+        .profile-lines {
+            color: var(--admin-muted);
+            line-height: 1.75;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .type-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 29px;
+            padding: 0 11px;
+            border-radius: 999px;
+            font-size: 0.76rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .member { color: #047857; background: #D1FAE5; }
+        .guest { color: #1D4ED8; background: #DBEAFE; }
+        .account-active { color: #047857; font-weight: 800; }
+        .account-locked { color: #B91C1C; font-weight: 800; }
+
+        .metric-panel {
+            padding: 20px;
+        }
+
+        .metric-panel span {
+            display: block;
+            color: var(--admin-muted);
+            font-size: 0.75rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-bottom: 9px;
+        }
+
+        .metric-panel strong {
+            color: var(--admin-ink);
+            font-size: 1.45rem;
+            font-weight: 900;
+        }
+
+        .metric-panel.money strong {
+            color: var(--admin-green);
+            font-size: 1.18rem;
+        }
+
+        .section-panel {
+            margin-bottom: 20px;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--admin-line);
+        }
+
+        .section-head h3 {
+            margin: 0;
+            font-size: 1.02rem;
+            font-weight: 900;
+        }
+
+        .section-add {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            min-height: 39px;
+            padding: 0 13px;
+            border-radius: 8px;
+            color: #fff;
+            background: var(--admin-green);
+            text-decoration: none;
+            font-size: 0.84rem;
+            font-weight: 800;
+        }
+
+        .management-table {
+            margin: 0;
+        }
+
+        .management-table th {
+            padding: 14px 18px;
+            border-color: var(--admin-line);
+            color: var(--admin-muted);
+            background: #F9FAFB;
+            font-size: 0.75rem;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .management-table td {
+            padding: 15px 18px;
+            border-color: #F3F4F6;
+            vertical-align: middle;
+            font-size: 0.88rem;
+        }
+
+        .strong-line {
+            color: var(--admin-ink);
+            font-weight: 900;
+        }
+
+        .muted-line {
+            margin-top: 4px;
+            color: var(--admin-muted);
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .pet-state,
+        .booking-state {
+            display: inline-flex;
+            align-items: center;
+            min-height: 29px;
+            padding: 0 11px;
+            border-radius: 999px;
+            font-size: 0.76rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .pet-active, .completed { color: #047857; background: #D1FAE5; }
+        .pet-inactive, .expired { color: #4B5563; background: #E5E7EB; }
+        .confirmed { color: #1D4ED8; background: #DBEAFE; }
+        .progress { color: #6D28D9; background: #EDE9FE; }
+        .pending { color: #B45309; background: #FEF3C7; }
+        .cancelled { color: #B91C1C; background: #FEE2E2; }
+
+        .table-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .table-action,
+        .toggle-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 38px;
+            padding: 0 11px;
+            border: 1px solid var(--admin-line);
+            border-radius: 8px;
+            color: var(--admin-blue);
+            background: #fff;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .toggle-action {
+            color: #374151;
+        }
+
+        .empty-section {
+            padding: 34px 20px;
+            color: var(--admin-muted);
+            text-align: center;
+            font-weight: 700;
+        }
+
+        @media (max-width: 1150px) {
+            .customer-overview { grid-template-columns: 1fr 1fr; }
+            .profile-panel { grid-column: 1 / -1; }
+        }
+
+        @media (max-width: 640px) {
+            .customer-overview { grid-template-columns: 1fr; }
+        }

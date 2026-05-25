@@ -1,0 +1,116 @@
+@model PetcareWebsite.ViewModels.AdminPetEditorViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Customers";
+    ViewData["AdminTitle"] = Model.IsEditing ? "Cập nhật thú cưng" : "Thêm thú cưng";
+    ViewData["AdminSubtitle"] = $"Quản lý thông tin thú cưng thuộc hồ sơ khách hàng {Model.CustomerName}.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/petform.css" asp-append-version="true" />
+}
+
+<div class="editor-wrap">
+    <div class="admin-panel editor-panel">
+        <div class="owner-line">
+            <i class="fas fa-user"></i>
+            Chủ nuôi: <strong>@Model.CustomerName</strong>
+        </div>
+
+        <form method="post" action="@Url.Action("SavePet", "Admin")">
+            @Html.AntiForgeryToken()
+            <input asp-for="PetId" type="hidden">
+            <input asp-for="CustomerId" type="hidden">
+            <div asp-validation-summary="ModelOnly"></div>
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="Name">Tên thú cưng</label>
+                    <input class="form-control" asp-for="Name" maxlength="50" placeholder="Nhập tên thú cưng">
+                    <span asp-validation-for="Name"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="Weight">Cân nặng (kg)</label>
+                    <input class="form-control" asp-for="Weight" type="number" min="0.01" max="150" step="0.01" placeholder="Ví dụ: 3.00">
+                    <span asp-validation-for="Weight"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="SpeciesId">Loại thú cưng</label>
+                    <select class="form-select" asp-for="SpeciesId" id="speciesSelect">
+                        <option value="0">Chọn loại thú cưng...</option>
+                        @foreach (var species in Model.Species)
+                        {
+                            <option value="@species.SpeciesId">@species.SpeciesName</option>
+                        }
+                    </select>
+                    <span asp-validation-for="SpeciesId"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="BreedId">Giống thú cưng</label>
+                    <select class="form-select" asp-for="BreedId" id="breedSelect">
+                        <option value="0">Chọn giống thú cưng...</option>
+                        @foreach (var breed in Model.Breeds)
+                        {
+                            <option value="@breed.BreedId" data-species-id="@breed.SpeciesId">@breed.BreedName</option>
+                        }
+                    </select>
+                    <span asp-validation-for="BreedId"></span>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" asp-for="Notes">Ghi chú chăm sóc</label>
+                    <textarea class="form-control" asp-for="Notes" placeholder="Tình trạng, tính cách hoặc yêu cầu cần lưu ý..."></textarea>
+                    <span asp-validation-for="Notes"></span>
+                </div>
+            </div>
+
+            <div class="editor-actions">
+                <a class="btn-cancel" href="@Url.Action("CustomerDetails", "Admin", new { id = Model.CustomerId })">Hủy</a>
+                <button class="btn-save" type="submit"><i class="far fa-floppy-disk"></i> Lưu thú cưng</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const speciesSelect = document.getElementById('speciesSelect');
+            const breedSelect = document.getElementById('breedSelect');
+            const originalBreedId = breedSelect.value;
+
+            function filterBreeds(preserveSelection) {
+                const speciesId = speciesSelect.value;
+                let selectedVisible = false;
+
+                Array.from(breedSelect.options).forEach(option => {
+                    if (option.value === '0') {
+                        return;
+                    }
+
+                    const visible = option.dataset.speciesId === speciesId;
+                    option.hidden = !visible;
+                    option.disabled = !visible;
+                    if (visible && option.value === breedSelect.value) {
+                        selectedVisible = true;
+                    }
+                });
+
+                if (preserveSelection && originalBreedId !== '0') {
+                    breedSelect.value = originalBreedId;
+                    return;
+                }
+
+                if (!selectedVisible) {
+                    breedSelect.value = '0';
+                }
+            }
+
+            filterBreeds(true);
+            speciesSelect.addEventListener('change', function () {
+                filterBreeds(false);
+            });
+        });
+    </script>
+}

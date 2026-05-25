@@ -1,0 +1,462 @@
+@{
+    ViewData["Title"] = "Đặt lịch Hẹn - Bước 1 | PetCare";
+    bool isLoggedIn = ViewBag.IsLoggedIn ?? false;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/booking/index.css" asp-append-version="true" />
+}
+
+<section class="booking-hero">
+    <div class="container">
+        <span class="section-badge"><i class="fas fa-calendar-check me-2"></i>Chăm sóc tận tâm</span>
+        <h1>Lên lịch chăm sóc cho <br /><span class="text-green">Người bạn nhỏ</span></h1>
+    </div>
+</section>
+
+<section class="section-padding booking-container">
+    <div class="container">
+
+        @if (TempData["BookingError"] != null)
+        {
+            <div class="booking-alert">
+                <i class="fas fa-circle-exclamation me-2"></i>@TempData["BookingError"]
+            </div>
+        }
+
+        <div class="booking-steps d-none d-md-flex">
+            <div class="step active"><div class="step-num">1</div> Thông tin</div>
+            <div class="step"><div class="step-num">2</div> Lịch hẹn</div>
+            <div class="step"><div class="step-num">3</div> Xác nhận</div>
+        </div>
+
+        <div class="row g-5">
+            <div class="col-lg-8">
+                <div class="booking-card">
+
+                    <form action="@Url.Action("Time", "Booking")" method="GET" id="step1Form">
+
+                        @if (isLoggedIn)
+                        {
+                            <div class="mb-4">
+                                <div class="section-block-title"><i class="fas fa-user-shield text-green"></i> Thông tin khách hàng</div>
+                                <div class="profile-static-box">
+                                    <div class="static-item"><i class="fas fa-user"></i> Họ tên: <span class="static-value">@ViewBag.Customer?.FullName</span></div>
+                                    <div class="static-item"><i class="fas fa-phone"></i> Điện thoại: <span class="static-value">@ViewBag.Customer?.PhoneNumber</span></div>
+                                    <div class="static-item"><i class="fas fa-envelope"></i> Email: <span class="static-value">@ViewBag.Customer?.Email</span></div>
+                                </div>
+                                <input type="hidden" name="customerId" value="@ViewBag.Customer?.CustomerId" />
+                            </div>
+
+                            <hr class="divider-line" />
+
+                            <div class="mb-4">
+                                <div class="section-block-title"><i class="fas fa-paw text-green"></i> Hồ sơ Thú cưng</div>
+
+                                <div class="pet-card-grid">
+                                    @{
+                                        int petCounter = 0;
+                                    }
+                                    @if (ViewBag.MyPets != null)
+                                    {
+                                        foreach (var pet in ViewBag.MyPets)
+                                        {
+                                            <label class="pet-select-card @(petCounter == 0 ? "selected" : "")" onclick="handlePetCardSelect(this)">
+                                                <input type="radio" name="petId" value="@pet.PetId" @(petCounter == 0 ? "checked" : "") />
+
+                                                <div class="pet-avatar">
+                                                    <i class="fas @(pet.PetBreed?.SpeciesId == 2 ? "fa-cat" : "fa-dog")"></i>
+                                                </div>
+                                                <div class="pet-details">
+                                                    <div class="pet-name">
+                                                        @pet.Name
+                                                        <i class="fas fa-venus-mars text-muted pet-gender-icon"></i>
+                                                    </div>
+                                                    <p class="pet-desc">@pet.PetBreed?.BreedName • @pet.Weight kg</p>
+                                                </div>
+                                                <i class="fas fa-check-circle check-icon"></i>
+                                            </label>
+                                            petCounter++;
+                                        }
+                                    }
+                                </div>
+
+                                <button type="button" class="btn-add-trigger" id="btnToggleNewPet" onclick="showNewPetForm()">
+                                    <i class="fas fa-plus"></i> Đăng ký dịch vụ cho bé mới
+                                </button>
+
+                                <div id="memberNewPetBlock" class="p-4 bg-light rounded-4 border mt-3 member-new-pet-block">
+                                    <h5 class="fw-bold mb-3 text-success">Khai báo hồ sơ bé mới</h5>
+
+                                    <label class="form-label fw-bold text-muted mb-2">Loại thú cưng</label>
+                                    <input type="hidden" name="memberPetType" id="memberPetTypeInput" value="Dog" disabled>
+                                    <div class="type-selector">
+                                        <div class="type-card active" onclick="selectMemberType(this, 'Dog')"><i class="fas fa-dog"></i><span>Giống Chó</span></div>
+                                        <div class="type-card" onclick="selectMemberType(this, 'Cat')"><i class="fas fa-cat"></i><span>Giống Mèo</span></div>
+                                        <div class="type-card" onclick="selectMemberType(this, 'Other')"><i class="fas fa-rabbit"></i><span>Khác</span></div>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <div class="col-md-6"><div class="form-floating"><input type="text" class="form-control" name="memberPetName" id="memberPetName" placeholder="Tên bé" disabled><label>Tên của bé</label></div></div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <select class="form-select" name="memberBreedId" id="memberBreedId" disabled>
+                                                    <option value="" selected disabled>-- Chọn giống --</option>
+                                                    @if (ViewBag.Breeds != null)
+                                                    {
+                                                        <optgroup label="Giống Chó">@foreach(var b in ((IEnumerable<PetcareWebsite.Models.PetBreed>)ViewBag.Breeds).Where(x => x.SpeciesId == 1)){
+                                                        <option value="@b.BreedId">@b.BreedName</option>
+                                                    }
+    </optgroup>
+                                                    <optgroup label="Giống Mèo">@foreach(var b in ((IEnumerable<PetcareWebsite.Models.PetBreed>)ViewBag.Breeds).Where(x => x.SpeciesId == 2)){
+                                                    <option value="@b.BreedId">@b.BreedName</option>
+                                                }
+</optgroup>
+                                                <optgroup label="Khác">@foreach(var b in ((IEnumerable<PetcareWebsite.Models.PetBreed>)ViewBag.Breeds).Where(x => x.SpeciesId != 1 && x.SpeciesId != 2)){
+                                                <option value="@b.BreedId">@b.BreedName</option>
+                                                                                                }
+</optgroup>
+                                                                                                }
+                                            </select>
+                                            <label>Giống loài chính xác</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4"><div class="form-floating"><input type="number" min="0.01" max="150" step="0.01" class="form-control" name="memberPetWeight" id="memberPetWeight" placeholder="Cân nặng" disabled><label>Cân nặng (kg)</label></div></div>
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <select class="form-select" name="memberPetAge" id="memberPetAge" disabled>
+                                                <option value="Dưới 1 tuổi">Dưới 1 tuổi</option>
+                                                <option value="1 - 3 tuổi" selected>1 - 3 tuổi</option>
+                                                <option value="3 - 6 tuổi">3 - 6 tuổi</option>
+                                                <option value="Trên 6 tuổi">Trên 6 tuổi</option>
+                                            </select>
+                                            <label>Độ tuổi</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <select class="form-select" name="memberPetGender" id="memberPetGender" disabled>
+                                                <option value="Đực" selected>Bé Đực</option>
+                                                <option value="Cái">Bé Cái</option>
+                                                <option value="Không rõ">Không rõ</option>
+                                            </select>
+                                            <label>Giới tính</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                                                }
+                                                else
+                        {
+                            <div class="mb-4">
+                                <div class="section-block-title"><i class="fas fa-user-edit text-green"></i> Thông tin khách hàng</div>
+                                <div class="row g-3">
+                                    <div class="col-md-6"><div class="form-floating"><input type="text" class="form-control" name="customerName" placeholder="Họ và tên" required /><label>Họ và tên của bạn</label></div></div>
+                                    <div class="col-md-6"><div class="form-floating"><input type="tel" maxlength="15" class="form-control" name="customerPhone" placeholder="Số điện thoại" required /><label>Số điện thoại liên hệ</label></div></div>
+                                    <div class="col-12"><div class="form-floating"><input type="email" class="form-control" name="customerEmail" placeholder="Email" /><label>Địa chỉ Email (Nhận thông tin lịch hẹn)</label></div></div>
+                                </div>
+                            </div>
+
+                            <hr class="divider-line" />
+
+                            <div class="mb-4">
+                                <div class="section-block-title"><i class="fas fa-paw text-green"></i> Thông tin thú cưng</div>
+
+                                <div class="p-4 bg-light rounded-4 border shadow-sm">
+                                    <label class="form-label fw-bold text-muted mb-2">Loại thú cưng</label>
+                                    <input type="hidden" name="petType" id="guestPetTypeInput" value="Dog">
+
+                                    <div class="type-selector mb-4">
+                                        <div class="type-card active" onclick="selectGuestType(this, 'Dog')"><i class="fas fa-dog"></i><span>Giống Chó</span></div>
+                                        <div class="type-card" onclick="selectGuestType(this, 'Cat')"><i class="fas fa-cat"></i><span>Giống Mèo</span></div>
+                                        <div class="type-card" onclick="selectGuestType(this, 'Other')"><i class="fas fa-rabbit"></i><span>Khác</span></div>
+                                    </div>
+
+                                    <div class="row g-4">
+                                        <div class="col-md-6"><div class="form-floating"><input type="text" class="form-control" name="petName" placeholder="Tên thú cưng" required /><label>Tên thú cưng (VD: Bella)</label></div></div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <select class="form-select" name="breedId" required>
+                                                    <option value="" selected disabled>-- Chọn giống loài --</option>
+                                                    @if (ViewBag.Breeds != null)
+                                                    {
+                                                        <optgroup label="Giống Chó">@foreach(var b in ((IEnumerable<PetcareWebsite.Models.PetBreed>)ViewBag.Breeds).Where(x => x.SpeciesId == 1)){
+                                                        <option value="@b.BreedId">@b.BreedName</option>
+                                                    }
+    </optgroup>
+                                                    <optgroup label="Giống Mèo">@foreach(var b in ((IEnumerable<PetcareWebsite.Models.PetBreed>)ViewBag.Breeds).Where(x => x.SpeciesId == 2)){
+                                                    <option value="@b.BreedId">@b.BreedName</option>
+                                                }
+</optgroup>
+                                                <optgroup label="Thú cưng Khác">@foreach(var b in ((IEnumerable<PetcareWebsite.Models.PetBreed>)ViewBag.Breeds).Where(x => x.SpeciesId != 1 && x.SpeciesId != 2)){
+                                                <option value="@b.BreedId">@b.BreedName</option>
+                                                                                                }
+</optgroup>
+                                                                                                }
+                                            </select>
+                                            <label>Giống loài chính xác</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4"><div class="form-floating"><input type="number" min="0.01" max="150" step="0.01" class="form-control" name="petWeight" placeholder="Cân nặng" required /><label>Cân nặng (kg)</label></div></div>
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <select class="form-select" name="petAge" required>
+                                                <option value="Dưới 1 tuổi">Dưới 1 tuổi</option>
+                                                <option value="1 - 3 tuổi" selected>1 - 3 tuổi</option>
+                                                <option value="3 - 6 tuổi">3 - 6 tuổi</option>
+                                                <option value="Trên 6 tuổi">Trên 6 tuổi</option>
+                                            </select>
+                                            <label>Độ tuổi</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-floating">
+                                            <select class="form-select" name="petGender" required>
+                                                <option value="Đực" selected>Bé Đực</option>
+                                                <option value="Cái">Bé Cái</option>
+                                                <option value="Không rõ">Không rõ</option>
+                                            </select>
+                                            <label>Giới tính</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                                                }
+
+                        <hr class="divider-line" />
+
+                        <div class="mb-4">
+                            <div class="section-block-title"><i class="fas fa-sparkles text-green"></i> 3. Chọn Dịch vụ & Ghi chú</div>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <button type="button" class="service-select-btn" data-bs-toggle="modal" data-bs-target="#serviceModal" id="btnSelectService">
+                                        <div class="service-select-content" id="selectedServiceContent">
+                                            <span class="service-select-placeholder">-- Bấm để chọn gói dịch vụ chăm sóc --</span>
+                                        </div>
+                                        <i class="fas fa-chevron-down text-muted"></i>
+                                    </button>
+
+                                    <input type="hidden" name="serviceId" id="hiddenServiceId" required>
+                                </div>
+
+                                <div class="col-12 mt-3">
+                                    <div class="form-floating">
+                                        <textarea class="form-control pet-note" name="petNote" id="petNote" placeholder="Ghi chú thêm"></textarea>
+                                        <label for="petNote">Yêu cầu đặc biệt cho bé (Ví dụ: Nhát người, sấy lông kỹ...)</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal fade" id="serviceModal" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                                <div class="modal-content border-0 shadow-lg service-modal-content">
+                                    <div class="modal-header border-bottom-0 pb-0 pt-4 px-4">
+                                        <h5 class="modal-title fw-800"><i class="fas fa-list-ul text-green me-2"></i>Bảng giá Dịch vụ</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body p-4">
+                                        <div class="service-list-group">
+                                            @if (ViewBag.Services != null)
+                                            {
+                                                foreach (var svc in ViewBag.Services)
+                                                {
+                                                    <div class="service-item-card" onclick="selectService(@svc.ServiceId, '@Html.Raw(svc.ServiceName.Replace("'", "\\'"))', '@svc.BasePrice.ToString("N0")')">
+                                                        <div class="service-item-info">
+                                                            <h6>@svc.ServiceName</h6>
+                                                            <p><i class="fas fa-tag me-1"></i> @(svc.Category?.CategoryName ?? "Dịch vụ")</p>
+                                                        </div>
+                                                        <div class="service-item-price">
+                                                            @svc.BasePrice.ToString("N0") đ
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-end mt-5">
+                            <button type="submit" class="btn btn-primary btn-lg px-5 py-3 fs-6 rounded-pill fw-bold">
+                                Tiếp tục chọn thời gian <i class="fas fa-arrow-right ms-2"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="info-sidebar-card">
+                    <div class="card-icon-box"><i class="fas fa-clock"></i></div>
+                    <h5 class="fw-800 mb-4 text-dark">Giờ hoạt động cửa hàng</h5>
+                    <ul class="list-unstyled mb-0 working-hours text-muted fw-medium">
+                        <li><span>Thứ 2 - Thứ 6</span><span class="text-dark fw-bold">08:00 - 20:00</span></li>
+                        <li><span>Thứ 7</span><span class="text-dark fw-bold">09:00 - 18:00</span></li>
+                        <li><span>Chủ nhật</span><span class="text-danger fw-bold">Đóng cửa nghỉ</span></li>
+                    </ul>
+                </div>
+
+                <div class="info-sidebar-card support-card">
+                    <i class="fas fa-headset fs-1 mb-3 text-green"></i>
+                    <h4 class="fw-800 mb-3">Tổng đài hỗ trợ khẩn</h4>
+                    <p class="small opacity-75 mb-4">Mọi thắc mắc hoặc cần dời lịch hẹn gấp sếp vui lòng gọi ngay đường dây nóng.</p>
+                    <a href="tel:0912345678" class="btn btn-light w-100 py-3 fw-bold rounded-pill text-green shadow-sm">Hotline: 0912 345 678</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section-padding faq-section border-top">
+    <div class="container">
+        <div class="row g-5 align-items-center">
+            <div class="col-lg-5">
+                <span class="section-badge mb-3">Hỏi đáp nhanh</span>
+                <h2 class="fw-800 mb-4 display-6">Giải đáp thắc mắc đặt lịch</h2>
+            </div>
+            <div class="col-lg-7">
+                <div class="accordion" id="faqAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#q1">Tôi có thể thay đổi lịch sau khi đặt không?</button></h2>
+                        <div id="q1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion"><div class="accordion-body text-muted">Hoàn toàn được. Sếp chỉ cần truy cập vào mục lịch sử đặt hẹn hoặc gọi hotline để đổi giờ trước 2 tiếng.</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+   @section Scripts {
+    <script>
+        // =====================================
+        // 1. XỬ LÝ CHỌN THẺ THÚ CƯNG DẠNG CARD (MEMBER)
+        // =====================================
+        function handlePetCardSelect(element) {
+            document.querySelectorAll('.pet-select-card').forEach(card => card.classList.remove('selected'));
+            element.classList.add('selected');
+            element.querySelector('input[type="radio"]').checked = true;
+            hideNewPetForm();
+        }
+
+        // =====================================
+        // 2. BẬT TẮT FORM BÉ MỚI (MEMBER)
+        // =====================================
+        function setNewPetFieldsEnabled(enabled) {
+            const fieldIds = [
+                'memberPetTypeInput',
+                'memberPetName',
+                'memberBreedId',
+                'memberPetWeight',
+                'memberPetAge',
+                'memberPetGender'
+            ];
+
+            fieldIds.forEach(id => {
+                const field = document.getElementById(id);
+                if (field) {
+                    field.disabled = !enabled;
+                }
+            });
+
+            ['memberPetName', 'memberBreedId', 'memberPetWeight'].forEach(id => {
+                const field = document.getElementById(id);
+                if (field) {
+                    field.required = enabled;
+                }
+            });
+        }
+
+        function showNewPetForm() {
+            document.querySelectorAll('.pet-select-card').forEach(card => {
+                card.classList.remove('selected');
+                card.querySelector('input[type="radio"]').checked = false;
+            });
+            document.getElementById('memberNewPetBlock').style.display = 'block';
+
+            if(!document.getElementById('newPetMarker')) {
+                const marker = document.createElement('input');
+                marker.type = 'hidden';
+                marker.name = 'petId';
+                marker.value = '0';
+                marker.id = 'newPetMarker';
+                document.getElementById('memberNewPetBlock').appendChild(marker);
+            }
+
+            setNewPetFieldsEnabled(true);
+        }
+
+        function hideNewPetForm() {
+            document.getElementById('memberNewPetBlock').style.display = 'none';
+            setNewPetFieldsEnabled(false);
+
+            const marker = document.getElementById('newPetMarker');
+            if(marker) marker.remove();
+        }
+
+        // =====================================
+        // 3. ĐỔI LOẠI CHÓ/MÈO
+        // =====================================
+        function selectMemberType(element, typeValue) {
+            element.parentNode.querySelectorAll(".type-card").forEach(card => card.classList.remove("active"));
+            element.classList.add("active");
+            document.getElementById("memberPetTypeInput").value = typeValue;
+        }
+
+        function selectGuestType(element, typeValue) {
+            element.parentNode.querySelectorAll(".type-card").forEach(card => card.classList.remove("active"));
+            element.classList.add("active");
+            document.getElementById("guestPetTypeInput").value = typeValue;
+        }
+
+        // =====================================
+        // 4. XỬ LÝ MODAL CHỌN DỊCH VỤ
+        // =====================================
+        function selectService(id, name, price) {
+            document.getElementById('hiddenServiceId').value = id;
+            
+            const contentDiv = document.getElementById('selectedServiceContent');
+            contentDiv.innerHTML = `
+                <span class="service-select-title">${name}</span>
+                <span class="service-select-price">${price} VNĐ</span>
+            `;
+            document.getElementById('btnSelectService').classList.add('selected');
+
+            const modalEl = document.getElementById('serviceModal');
+            if (modalEl) {
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.hide();
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const existingPets = document.querySelectorAll('.pet-select-card');
+            if (document.getElementById('memberNewPetBlock') && existingPets.length === 0) {
+                showNewPetForm();
+            }
+        });
+
+        // =====================================
+        // 5. TỰ ĐỘNG CHỌN DỊCH VỤ TỪ TRANG CHI TIẾT
+        // =====================================
+        @if (ViewBag.SelectedServiceId != null && ViewBag.Services != null)
+        {
+            // Ép kiểu động về số nguyên int để LINQ có thể hiểu được
+            int selectedId = (int)ViewBag.SelectedServiceId;
+            var selectedSvc = ((IEnumerable<PetcareWebsite.Models.ServiceCatalog>)ViewBag.Services).FirstOrDefault(s => s.ServiceId == selectedId);
+            
+            if (selectedSvc != null)
+            {
+                <text>
+                document.addEventListener("DOMContentLoaded", function() {
+                    // Tự động gọi hàm selectService giả lập như người dùng vừa click
+                    selectService(@selectedSvc.ServiceId, '@Html.Raw(selectedSvc.ServiceName.Replace("'", "\\'"))', '@selectedSvc.BasePrice.ToString("N0")');
+                });
+                </text>
+            }
+        }
+    </script>
+}

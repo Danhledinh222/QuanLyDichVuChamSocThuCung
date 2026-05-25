@@ -1,0 +1,100 @@
+@model PetcareWebsite.ViewModels.AdminServiceEditorViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Services";
+    ViewData["AdminTitle"] = Model.IsEditing ? "Cập nhật dịch vụ" : "Thêm dịch vụ mới";
+    ViewData["AdminSubtitle"] = Model.IsEditing
+        ? "Điều chỉnh thông tin cung cấp và trạng thái nhận lịch của dịch vụ."
+        : "Thiết lập dịch vụ mới để khách hàng có thể lựa chọn khi đặt lịch.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/serviceform.css" asp-append-version="true" />
+}
+
+<div class="editor-shell">
+    <div class="admin-panel editor-panel">
+        <h3 class="editor-title">Thông tin dịch vụ</h3>
+        <form method="post" action="@Url.Action("SaveService", "Admin")">
+            @Html.AntiForgeryToken()
+            <input asp-for="ServiceId" type="hidden">
+            <div asp-validation-summary="ModelOnly"></div>
+
+            <div class="row g-4">
+                <div class="col-md-7">
+                    <label class="form-label" asp-for="ServiceName">Tên dịch vụ</label>
+                    <input class="form-control" asp-for="ServiceName" maxlength="100" placeholder="Nhập tên dịch vụ">
+                    <span asp-validation-for="ServiceName"></span>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" asp-for="CategoryId">Danh mục</label>
+                    <select class="form-select" asp-for="CategoryId">
+                        <option value="0">Chọn danh mục...</option>
+                        @foreach (var category in Model.Categories)
+                        {
+                            <option value="@category.CategoryId">@category.CategoryName</option>
+                        }
+                    </select>
+                    <span asp-validation-for="CategoryId"></span>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" asp-for="Description">Mô tả dịch vụ</label>
+                    <textarea class="form-control" asp-for="Description" maxlength="1000" placeholder="Mô tả quy trình hoặc phạm vi chăm sóc..."></textarea>
+                    <span asp-validation-for="Description"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="BasePrice">Giá cơ bản (đ)</label>
+                    <input class="form-control" asp-for="BasePrice" type="number" min="1000" step="1000">
+                    <span asp-validation-for="BasePrice"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="EstimatedDuration">Thời lượng (phút)</label>
+                    <input class="form-control" asp-for="EstimatedDuration" type="number" min="1" max="1440" step="1" placeholder="Ví dụ: 60">
+                    <span asp-validation-for="EstimatedDuration"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="MaxCapacity">Sức chứa mỗi khung giờ</label>
+                    <input class="form-control" asp-for="MaxCapacity" type="number" min="1" max="100" step="1">
+                    <span asp-validation-for="MaxCapacity"></span>
+                </div>
+                <div class="col-12">
+                    <label class="availability-toggle">
+                        <input asp-for="IsActive" type="checkbox">
+                        Đang nhận đặt lịch từ khách hàng
+                    </label>
+                </div>
+            </div>
+
+            <div class="editor-actions">
+                <a class="btn-cancel" href="@Url.Action("Services", "Admin")">Hủy</a>
+                <button class="btn-save" type="submit"><i class="far fa-floppy-disk"></i> Lưu dịch vụ</button>
+            </div>
+        </form>
+    </div>
+
+    <aside>
+        @if (Model.IsEditing)
+        {
+            <div class="admin-panel side-box">
+                <h3>Dữ liệu liên quan</h3>
+                <div class="metric-line">
+                    <span>Lịch đã tạo</span>
+                    <strong>@Model.BookingCount</strong>
+                </div>
+            </div>
+        }
+        <div class="admin-panel side-box">
+            <h3>Quy tắc cập nhật</h3>
+            <div class="rule-note">
+                Tắt nhận lịch chỉ ẩn dịch vụ khỏi lựa chọn đặt mới. Lịch đã tạo vẫn được giữ để admin tiếp tục xử lý.
+                <br><br>
+                Khi đổi giá, hóa đơn của lịch đã có không tự thay đổi; giá mới áp dụng khi tạo hoặc cập nhật lịch.
+            </div>
+        </div>
+    </aside>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

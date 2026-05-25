@@ -1,0 +1,173 @@
+@model PetcareWebsite.ViewModels.AdminInventoryViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Inventory";
+    ViewData["AdminTitle"] = "Quản lý kho vật tư";
+    ViewData["AdminSubtitle"] = "Theo dõi tồn kho, hạn sử dụng và các lần nhập xuất phục vụ dịch vụ.";
+    var today = DateOnly.FromDateTime(DateTime.Today);
+    var expiringLimit = today.AddDays(30);
+
+    string StatusLabel(PetcareWebsite.Models.MedicalSupply supply)
+    {
+        if (supply.ExpiryDate.HasValue && supply.ExpiryDate.Value < today) return "Đã hết hạn";
+        if ((supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0)) return "Tồn thấp";
+        if (supply.ExpiryDate.HasValue && supply.ExpiryDate.Value <= expiringLimit) return "Sắp hết hạn";
+        return "Ổn định";
+    }
+
+    string StatusClass(PetcareWebsite.Models.MedicalSupply supply)
+    {
+        if (supply.ExpiryDate.HasValue && supply.ExpiryDate.Value < today) return "expired";
+        if ((supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0)) return "low";
+        if (supply.ExpiryDate.HasValue && supply.ExpiryDate.Value <= expiringLimit) return "expiring";
+        return "stable";
+    }
+
+    string TransactionName(string transactionType) => transactionType switch
+    {
+        "IMPORT" => "Nhập kho",
+        "EXPORT_SERVICE" => "Xuất dịch vụ",
+        "RETURN_SERVICE" => "Hoàn kho",
+        _ => transactionType
+    };
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/inventory.css" asp-append-version="true" />
+}
+
+<div class="page-command">
+    <a class="btn-quota" href="@Url.Action("InventoryQuotas", "Admin")">
+        <i class="fas fa-list-check"></i> Định mức dịch vụ
+    </a>
+    <a class="btn-create" href="@Url.Action("CreateSupply", "Admin")">
+        <i class="fas fa-plus"></i> Thêm vật tư
+    </a>
+</div>
+
+<div class="inventory-summary">
+    <a class="admin-panel summary-item" href="@Url.Action("Inventory", "Admin")">
+        <span>Tổng vật tư</span><strong>@Model.TotalCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Inventory", "Admin", new { status = "LowStock" })">
+        <span>Tồn kho thấp</span><strong>@Model.LowStockCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Inventory", "Admin", new { status = "Expired" })">
+        <span>Đã hết hạn</span><strong>@Model.ExpiredCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Inventory", "Admin", new { status = "Expiring" })">
+        <span>Hết hạn trong 30 ngày</span><strong>@Model.ExpiringCount</strong>
+    </a>
+</div>
+
+<div class="admin-panel">
+    <form method="get" action="@Url.Action("Inventory", "Admin")" class="filter-bar">
+        <input class="form-control" type="search" name="search" value="@Model.Search" placeholder="Tìm tên hoặc đơn vị vật tư">
+        <select class="form-select inventory-status-filter" name="status">
+            <option value="">Tất cả cảnh báo</option>
+            <option value="LowStock" selected="@(Model.Status == "LowStock" ? "selected" : null)">Tồn kho thấp</option>
+            <option value="Expired" selected="@(Model.Status == "Expired" ? "selected" : null)">Đã hết hạn</option>
+            <option value="Expiring" selected="@(Model.Status == "Expiring" ? "selected" : null)">Sắp hết hạn</option>
+        </select>
+        <button class="btn-filter" type="submit"><i class="fas fa-magnifying-glass me-2"></i>Lọc</button>
+        <a class="clear-link" href="@Url.Action("Inventory", "Admin")">Xóa lọc</a>
+    </form>
+
+    @if (!Model.Supplies.Any())
+    {
+        <div class="empty-state">
+            <i class="fas fa-box-open fs-2 mb-3 d-block"></i>
+            Không có vật tư phù hợp.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table warehouse-table">
+                <thead>
+                    <tr>
+                        <th>Vật tư</th>
+                        <th>Tồn kho</th>
+                        <th>Mức tối thiểu</th>
+                        <th>Hạn sử dụng</th>
+                        <th>Dịch vụ dùng</th>
+                        <th>Cảnh báo</th>
+                        <th>Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var supply in Model.Supplies)
+                    {
+                        <tr>
+                            <td>
+                                <div class="supply-name">@supply.SupplyName</div>
+                                <div class="muted-line">#@supply.SupplyId · @supply.Unit</div>
+                            </td>
+                            <td><span class="stock-quantity">@((supply.StockQuantity ?? 0).ToString("N0")) @supply.Unit</span></td>
+                            <td>@((supply.MinStockLevel ?? 0).ToString("N0")) @supply.Unit</td>
+                            <td>@(supply.ExpiryDate?.ToString("dd/MM/yyyy") ?? "Không theo dõi")</td>
+                            <td>@supply.ServiceMaterialQuota.Count định mức</td>
+                            <td>
+                                <span class="supply-status @StatusClass(supply)">@StatusLabel(supply)</span>
+                            </td>
+                            <td>
+                                <div class="actions">
+                                    <a class="action-link" href="@Url.Action("EditSupply", "Admin", new { id = supply.SupplyId })">
+                                        <i class="far fa-pen-to-square"></i> Sửa
+                                    </a>
+                                    <a class="import-link" href="@Url.Action("ImportSupply", "Admin", new { id = supply.SupplyId })">
+                                        <i class="fas fa-arrow-down"></i> Nhập
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="admin-panel history-panel">
+    <h3 class="panel-heading">Lịch sử biến động kho gần nhất</h3>
+    @if (!Model.RecentTransactions.Any())
+    {
+        <div class="empty-state">Chưa có giao dịch nhập hoặc xuất kho.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table warehouse-table">
+                <thead>
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Vật tư</th>
+                        <th>Loại giao dịch</th>
+                        <th>Số lượng</th>
+                        <th>Người thực hiện</th>
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var transaction in Model.RecentTransactions)
+                    {
+                        var positive = transaction.QuantityChange >= 0;
+                        <tr>
+                            <td>@(transaction.CreatedAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                            <td class="supply-name">@transaction.Supply.SupplyName</td>
+                            <td>@TransactionName(transaction.TransactionType)</td>
+                            <td>
+                                <span class="change @(positive ? "positive" : "negative")">
+                                    @(positive ? "+" : "")@transaction.QuantityChange.ToString("N0") @transaction.Supply.Unit
+                                </span>
+                            </td>
+                            <td>@(transaction.Employee?.FullName ?? "Hệ thống")</td>
+                            <td>@(string.IsNullOrWhiteSpace(transaction.Note) ? "-" : transaction.Note)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

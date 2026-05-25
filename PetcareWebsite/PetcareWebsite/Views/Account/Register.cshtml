@@ -1,0 +1,86 @@
+@{
+    Layout = null; // Trang đăng ký độc lập
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký | PetCare</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="~/css/pages/account/register.css" asp-append-version="true" />
+</head>
+<body>
+
+    <div class="register-wrapper">
+        <div class="register-left">
+            <div class="left-text">
+                <h2>Gia nhập cộng đồng PetCare ngay!</h2>
+                <p>Tạo tài khoản để bắt đầu đặt lịch khám, spa và lưu trữ hồ sơ sức khỏe cho thú cưng của bạn.</p>
+            </div>
+            <div class="left-image"></div>
+        </div>
+
+        <div class="register-right">
+            <div class="form-header">
+                <h3>Đăng ký tài khoản</h3>
+                <p class="register-subtitle">Chỉ mất chưa đến 1 phút</p>
+            </div>
+
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert-error">
+                    <i class="fas fa-exclamation-triangle me-2"></i> @TempData["ErrorMessage"]
+                </div>
+            }
+
+            <form asp-action="Register" asp-controller="Account" method="POST">
+
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Họ và Tên</label>
+                        <input type="text" name="fullName" placeholder="VD: Lê Đình Danh" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Số điện thoại</label>
+                        <input type="tel" name="phoneNumber" maxlength="15" placeholder="VD: 0901234567" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Địa chỉ Email (Tùy chọn)</label>
+                    <input type="email" name="email" placeholder="Nhập địa chỉ email của sếp">
+                </div>
+
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Mật khẩu</label>
+                        <input type="password" name="password" placeholder="Tạo mật khẩu" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Xác nhận mật khẩu</label>
+                        <input type="password" name="confirmPassword" placeholder="Nhập lại mật khẩu" required>
+                    </div>
+                </div>
+
+                <div class="form-options">
+                    <label class="terms-checkbox">
+                        <input type="checkbox" required>
+                        <span>Tôi đồng ý với <a href="#">Điều khoản dịch vụ</a> và <a href="#">Chính sách bảo mật</a> của PetCare.</span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn-submit">Hoàn tất Đăng ký</button>
+            </form>
+
+            <div class="form-footer register-footer">
+                Đã có tài khoản? <a class="login-link" href="@Url.Action("Login", "Account")">Đăng nhập ngay</a>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

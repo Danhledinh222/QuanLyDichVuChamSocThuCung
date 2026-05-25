@@ -1,0 +1,212 @@
+@{
+    ViewData["Title"] = "Chọn Thời Gian | PetCare";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/booking/time.css" asp-append-version="true" />
+}
+
+<section class="booking-header-minimal">
+    <div class="container">
+        <h2>Hoàn tất Lịch hẹn</h2>
+    </div>
+</section>
+
+<section class="booking-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10 col-xl-8">
+
+                <div class="booking-steps d-none d-md-flex">
+                    <div class="step completed"><div class="step-num"><i class="fas fa-check"></i></div> Thông tin</div>
+                    <div class="step active"><div class="step-num">2</div> Chọn thời gian</div>
+                    <div class="step"><div class="step-num">3</div> Xác nhận & Thanh toán</div>
+                </div>
+
+                <div class="booking-card">
+                    @if (TempData["BookingError"] != null)
+                    {
+                        <div class="alert alert-danger rounded-4 fw-semibold mb-4">
+                            <i class="fas fa-exclamation-triangle me-2"></i>@TempData["BookingError"]
+                        </div>
+                    }
+
+                    <form action="@Url.Action("Confirm", "Booking")" method="GET" id="step2Form">
+
+                        <input type="hidden" name="customerId" value="@ViewBag.CustomerId" />
+                        <input type="hidden" name="customerName" value="@ViewBag.CustomerName" />
+                        <input type="hidden" name="customerPhone" value="@ViewBag.CustomerPhone" />
+                        <input type="hidden" name="customerEmail" value="@ViewBag.CustomerEmail" />
+                        <input type="hidden" name="petId" value="@ViewBag.PetId" />
+                        <input type="hidden" name="petType" value="@ViewBag.PetType" />
+                        <input type="hidden" name="petName" value="@ViewBag.PetName" />
+                        <input type="hidden" name="breedId" value="@ViewBag.BreedId" />
+                        <input type="hidden" name="petWeight" value="@ViewBag.PetWeight" />
+                        <input type="hidden" name="petAge" value="@ViewBag.PetAge" />
+                        <input type="hidden" name="petGender" value="@ViewBag.PetGender" />
+                        <input type="hidden" name="serviceId" value="@ViewBag.ServiceId" />
+                        <input type="hidden" name="petNote" value="@ViewBag.PetNote" />
+
+                        <input type="hidden" name="bookingTime" id="bookingTime" required />
+
+                        <div class="mb-2">
+                            <h4 class="fw-800 mb-4 pb-3 border-bottom">
+                                <i class="far fa-calendar-alt text-green me-2"></i> Lịch trình đón bé
+                            </h4>
+
+                            <div class="row g-4 mb-4">
+                                <div class="col-md-7">
+                                    <label class="form-label fw-bold text-muted mb-2">Bạn muốn hẹn vào ngày nào?</label>
+                                    <div class="date-picker-wrapper">
+                                        <input type="date" name="bookingDate" class="form-control-date" id="bookingDate" required />
+                                        <div id="loadingSpinner" class="spinner-border text-success spinner-border-sm booking-spinner" role="status"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="time-section-title"><i class="fas fa-sun text-warning"></i> Ca Sáng</div>
+                            <div class="time-slot-grid" id="morningSlots">
+                                <div class="time-slot" data-time="08:00"><span class="time-slot-text">08:00</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="08:30"><span class="time-slot-text">08:30</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="09:00"><span class="time-slot-text">09:00</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="09:30"><span class="time-slot-text">09:30</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="10:00"><span class="time-slot-text">10:00</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="10:30"><span class="time-slot-text">10:30</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="11:00"><span class="time-slot-text">11:00</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                            </div>
+
+                            <div class="time-section-title"><i class="fas fa-cloud-sun text-info"></i> Ca Chiều</div>
+                            <div class="time-slot-grid" id="afternoonSlots">
+                                <div class="time-slot" data-time="14:00"><span class="time-slot-text">14:00</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="14:30"><span class="time-slot-text">14:30</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="15:00"><span class="time-slot-text">15:00</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="15:30"><span class="time-slot-text">15:30</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="16:00"><span class="time-slot-text">16:00</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="16:30"><span class="time-slot-text">16:30</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                                <div class="time-slot" data-time="17:00"><span class="time-slot-text">17:00</span><p class="time-slot-sub"><i class="fas fa-check"></i> Chọn</p></div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-3 mt-5">
+                            <a href="@Url.Action("Index", "Booking")" class="btn btn-light btn-lg px-4 fw-bold text-nowrap flex-shrink-0 btn-return">
+                                <i class="fas fa-arrow-left me-2"></i> Quay lại
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg w-100 fs-5 shadow-sm rounded-pill fw-bold">
+                                Tiếp tục xác nhận <i class="fas fa-arrow-right ms-2"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const dateInput = document.getElementById("bookingDate");
+            const localISOTime = getLocalDateValue(new Date());
+            dateInput.value = localISOTime;
+            dateInput.min = localISOTime;
+
+            // Vừa vào trang là tự động check giờ của ngày hôm nay
+            fetchBookedTimes(localISOTime);
+
+            // Khi người dùng chọn ngày khác -> Load lại giờ
+            dateInput.addEventListener('change', function() {
+                fetchBookedTimes(this.value);
+            });
+
+            window.setInterval(function () {
+                if (dateInput.value === getLocalDateValue(new Date())) {
+                    applyPastSlots(dateInput.value);
+                }
+            }, 30000);
+        });
+
+        function getLocalDateValue(date) {
+            const offset = date.getTimezoneOffset() * 60000;
+            return new Date(date - offset).toISOString().split("T")[0];
+        }
+
+        function isPastSlot(selectedDate, timeValue) {
+            const dateParts = selectedDate.split("-").map(Number);
+            const timeParts = timeValue.split(":").map(Number);
+            const slotTime = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1], 0);
+            return slotTime <= new Date();
+        }
+
+        function disableSlot(slot, label, reasonClass) {
+            slot.classList.add("disabled", reasonClass);
+            slot.classList.remove("active");
+            slot.setAttribute("data-disabled-label", label);
+            slot.setAttribute("aria-disabled", "true");
+            slot.onclick = null;
+
+            if (document.getElementById("bookingTime").value === slot.getAttribute("data-time")) {
+                document.getElementById("bookingTime").value = "";
+            }
+        }
+
+        function applyPastSlots(selectedDate) {
+            document.querySelectorAll(".time-slot").forEach(slot => {
+                if (isPastSlot(selectedDate, slot.getAttribute("data-time"))) {
+                    disableSlot(slot, "Đã qua giờ", "past");
+                }
+            });
+        }
+
+        // Hàm gọi API về C# để đếm công suất
+        function fetchBookedTimes(selectedDate) {
+            // Mở khóa toàn bộ các giờ để chuẩn bị load lại
+            document.querySelectorAll(".time-slot").forEach(slot => {
+                slot.classList.remove("disabled", "active", "past", "full");
+                slot.removeAttribute("data-disabled-label");
+                slot.removeAttribute("aria-disabled");
+                slot.onclick = function() { selectTime(this); };
+            });
+            document.getElementById("bookingTime").value = "";
+            applyPastSlots(selectedDate);
+
+            // Lấy mã dịch vụ khách đang chọn từ form ẩn
+            const serviceId = document.querySelector('input[name="serviceId"]').value;
+
+            fetch(`/Booking/GetBookedTimes?date=${selectedDate}&serviceId=${serviceId}`)
+                .then(res => res.json())
+                .then(bookedTimes => {
+                    document.querySelectorAll(".time-slot").forEach(slot => {
+                        // SỬA LỖI Ở ĐÂY: Dùng getAttribute để chỉ lấy đúng "09:00", bỏ đi chữ "Chọn"
+                        const timeValue = slot.getAttribute("data-time");
+
+                        // Nếu giờ bị trả về nằm trong danh sách ĐÃ FULL -> Khóa mờ lại
+                        if (bookedTimes.includes(timeValue) && !slot.classList.contains("past")) {
+                            disableSlot(slot, "Đã kín", "full");
+                        }
+                    });
+                })
+                .catch(err => console.log("Lỗi tải API:", err));
+        }
+
+        // Xử lý khi click vào ô Giờ rảnh
+        function selectTime(element) {
+            if (element.classList.contains("disabled")) return;
+
+            document.querySelectorAll(".time-slot").forEach((slot) => slot.classList.remove("active"));
+            element.classList.add("active");
+
+            // SỬA LỖI Ở ĐÂY: Dùng getAttribute để gán đúng định dạng giờ
+            document.getElementById("bookingTime").value = element.getAttribute("data-time");
+        }
+
+        // Bắt lỗi Validation nếu quên chọn giờ
+        document.getElementById('step2Form').addEventListener('submit', function(e) {
+            const timeInput = document.getElementById('bookingTime');
+            applyPastSlots(document.getElementById('bookingDate').value);
+            if (!timeInput.value) {
+                e.preventDefault();
+                alert('Vui lòng chọn một khung giờ hẹn còn khả dụng.');
+            }
+        });
+    </script>
+}

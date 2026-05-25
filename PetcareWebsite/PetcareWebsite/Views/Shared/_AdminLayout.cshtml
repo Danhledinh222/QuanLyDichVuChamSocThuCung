@@ -1,0 +1,112 @@
+@using Microsoft.AspNetCore.Http
+
+@{
+    var activePage = ViewData["ActiveAdminPage"] as string ?? "Dashboard";
+    var adminName = Context.Session.GetString("EmployeeName") ?? "Admin";
+    var pageTitle = ViewData["AdminTitle"] as string ?? "Dashboard";
+    var pageSubtitle = ViewData["AdminSubtitle"] as string ?? $"Hôm nay: {DateTime.Now:dd/MM/yyyy HH:mm}";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@pageTitle | PetCare Admin</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="~/css/layout/admin-layout.css" asp-append-version="true" />
+
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+    <div class="admin-shell">
+        <aside class="admin-sidebar">
+            <div class="admin-brand">
+                <div class="brand-mark"><i class="fas fa-paw"></i></div>
+                <div>
+                    <h1>PetCare Pro</h1>
+                    <span>Admin Management</span>
+                </div>
+            </div>
+
+            <nav class="admin-navigation">
+                <div class="nav-label">Tổng quan</div>
+                <a href="@Url.Action("Index", "Admin")" class="admin-nav-link @(activePage == "Dashboard" ? "active" : "")">
+                    <i class="fas fa-chart-pie"></i> Dashboard
+                </a>
+
+                <div class="nav-label">Chức năng quản lý</div>
+                <a href="@Url.Action("Bookings", "Admin")" class="admin-nav-link @(activePage == "Bookings" ? "active" : "")">
+                    <i class="far fa-calendar-alt"></i> Lịch hẹn
+                </a>
+                <a href="@Url.Action("Customers", "Admin")" class="admin-nav-link @(activePage == "Customers" ? "active" : "")">
+                    <i class="fas fa-users"></i> Khách hàng
+                </a>
+                <a href="@Url.Action("Employees", "Admin")" class="admin-nav-link @(activePage == "Employees" ? "active" : "")">
+                    <i class="fas fa-user-doctor"></i> Nhân viên
+                </a>
+                <a href="@Url.Action("Services", "Admin")" class="admin-nav-link @(activePage == "Services" ? "active" : "")">
+                    <i class="fas fa-scissors"></i> Dịch vụ
+                </a>
+                <a href="@Url.Action("Inventory", "Admin")" class="admin-nav-link @(activePage == "Inventory" ? "active" : "")">
+                    <i class="fas fa-boxes-stacked"></i> Kho vật tư
+                </a>
+                <a href="@Url.Action("Promotions", "Admin")" class="admin-nav-link @(activePage == "Promotions" ? "active" : "")">
+                    <i class="fas fa-tags"></i> Khuyến mãi
+                </a>
+                <a href="@Url.Action("Reviews", "Admin")" class="admin-nav-link @(activePage == "Reviews" ? "active" : "")">
+                    <i class="far fa-star"></i> Đánh giá
+                </a>
+                <a href="@Url.Action("Invoices", "Admin")" class="admin-nav-link @(activePage == "Invoices" ? "active" : "")">
+                    <i class="fas fa-file-invoice-dollar"></i> Hóa đơn
+                </a>
+                <a href="@Url.Action("Contacts", "Admin")" class="admin-nav-link @(activePage == "Contacts" ? "active" : "")">
+                    <i class="far fa-envelope"></i> Liên hệ
+                </a>
+            </nav>
+
+            <div class="admin-sidebar-footer">
+                <div class="admin-identity">
+                    <div class="admin-avatar">AD</div>
+                    <div>
+                        <h2>@adminName</h2>
+                        <p>Quản trị viên</p>
+                    </div>
+                </div>
+                <a href="@Url.Action("Index", "Home")" class="admin-home-link"><i class="fas fa-house"></i> Quay lại trang chủ</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <header class="admin-topbar">
+                <div>
+                    <h2>@pageTitle</h2>
+                    <div class="admin-subtitle">@pageSubtitle</div>
+                </div>
+                <div class="admin-actions">
+                    <a class="admin-action" href="@Url.Action("Index", "Home")"><i class="fas fa-house"></i> Trang chủ</a>
+                    <a class="admin-action primary" href="@Url.Action("Logout", "Account")"><i class="fas fa-right-from-bracket"></i> Đăng xuất</a>
+                </div>
+            </header>
+
+            <section class="admin-content">
+                @if (TempData["AdminSuccess"] != null)
+                {
+                    <div class="notice success"><i class="fas fa-check-circle me-2"></i>@TempData["AdminSuccess"]</div>
+                }
+                @if (TempData["AdminError"] != null)
+                {
+                    <div class="notice error"><i class="fas fa-triangle-exclamation me-2"></i>@TempData["AdminError"]</div>
+                }
+                @RenderBody()
+            </section>
+        </main>
+    </div>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

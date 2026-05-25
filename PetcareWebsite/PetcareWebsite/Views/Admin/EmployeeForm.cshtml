@@ -1,0 +1,99 @@
+@model PetcareWebsite.ViewModels.AdminEmployeeEditorViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Employees";
+    ViewData["AdminTitle"] = Model.IsEditing ? "Cập nhật nhân viên" : "Thêm nhân viên";
+    ViewData["AdminSubtitle"] = Model.IsEditing
+        ? "Cập nhật hồ sơ và trạng thái nhận phân công của nhân viên."
+        : "Thêm bác sĩ hoặc groomer vào danh sách phân công lịch hẹn.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/employeeform.css" asp-append-version="true" />
+}
+
+<div class="editor-shell">
+    <div class="admin-panel editor-panel">
+        <h3 class="editor-title">Thông tin nhân viên</h3>
+        <form method="post" action="@Url.Action("SaveEmployee", "Admin")">
+            @Html.AntiForgeryToken()
+            <input asp-for="EmployeeId" type="hidden">
+            <input asp-for="HasAccount" type="hidden">
+            <input asp-for="Username" type="hidden">
+            <input asp-for="AssignmentCount" type="hidden">
+            <input asp-for="UpcomingAssignmentCount" type="hidden">
+            <div asp-validation-summary="ModelOnly"></div>
+
+            <div class="row g-4">
+                <div class="col-md-7">
+                    <label class="form-label" asp-for="FullName">Họ tên nhân viên</label>
+                    <input class="form-control" asp-for="FullName" maxlength="100" placeholder="Nhập họ tên nhân viên">
+                    <span asp-validation-for="FullName"></span>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" asp-for="PhoneNumber">Số điện thoại</label>
+                    <input class="form-control" asp-for="PhoneNumber" maxlength="15" placeholder="0901234567">
+                    <span asp-validation-for="PhoneNumber"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="RoleId">Vai trò thực hiện</label>
+                    <select class="form-select" asp-for="RoleId">
+                        <option value="0">Chọn vai trò...</option>
+                        @foreach (var role in Model.Roles)
+                        {
+                            <option value="@role.RoleId">@role.RoleName</option>
+                        }
+                    </select>
+                    <span asp-validation-for="RoleId"></span>
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                    <label class="availability-toggle w-100">
+                        <input asp-for="IsActive" type="checkbox">
+                        Đang nhận phân công lịch hẹn
+                    </label>
+                    <span asp-validation-for="IsActive"></span>
+                </div>
+            </div>
+
+            <div class="editor-actions">
+                <a class="btn-cancel" href="@Url.Action("Employees", "Admin")">Hủy</a>
+                <button class="btn-save" type="submit"><i class="far fa-floppy-disk"></i> Lưu nhân viên</button>
+            </div>
+        </form>
+    </div>
+
+    <aside>
+        @if (Model.IsEditing)
+        {
+            <div class="admin-panel side-box">
+                <h3>Dữ liệu liên quan</h3>
+                <div class="metric-line">
+                    <span>Tài khoản đăng nhập</span>
+                    <strong>@(Model.HasAccount ? Model.Username : "Chưa cấp")</strong>
+                </div>
+                <div class="metric-line">
+                    <span>Lịch đã phân công</span>
+                    <strong>@Model.AssignmentCount</strong>
+                </div>
+                <div class="metric-line">
+                    <span>Lịch sắp tới</span>
+                    <strong>@Model.UpcomingAssignmentCount</strong>
+                </div>
+            </div>
+        }
+
+        <div class="admin-panel side-box">
+            <h3>Quy tắc nhân viên</h3>
+            <div class="rule-note">
+                Nhân viên đang giữ lịch sắp tới không thể tạm ngừng cho đến khi lịch được xử lý hoặc chuyển cho người khác.
+                <br><br>
+                Nhân viên thêm mới được sử dụng ngay trong chức năng phân công; tài khoản đăng nhập không được tự sinh từ màn hình này.
+            </div>
+        </div>
+    </aside>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
