@@ -1,10 +1,14 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+using PetcareWebsite.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Services.AddControllersWithViews();
+builder.Services.AddDbContext<PetCareDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddSingleton<PetcareWebsite.Data.DemoStore>();
 builder.Services.AddDataProtection()
     .SetApplicationName("PetCareHardcodeDemo")
@@ -28,7 +32,7 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseSession();
 
-// The prototype opens in a signed-in customer state so all designed screens are visible.
+// The screens still open with demo customer data until authentication is implemented.
 app.Use(async (context, next) =>
 {
     if (context.Session.GetInt32("DemoSessionReady") == null)
