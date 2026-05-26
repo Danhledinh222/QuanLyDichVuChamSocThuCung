@@ -1,32 +1,137 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using PetcareWebsite.Data;
+using Microsoft.EntityFrameworkCore;
+using PetcareWebsite.Extensions;
+using PetcareWebsite.Helpers;
 using PetcareWebsite.Models;
 
 namespace PetcareWebsite.Controllers
 {
-
-public class HomeController(DemoStore store) : Controller
-{
-    public IActionResult Index() => View(store.Services);
-
-    public IActionResult Pricing() => View(store.Services);
-
-    public IActionResult Contact() => View();
-
-    public IActionResult Privacy() => View();
-
-    [HttpPost]
-    public IActionResult SendContact(string? returnUrl)
+    public class HomeController : Controller
     {
-        TempData["SuccessMessage"] = "Thông tin liên hệ đã được ghi nhận trong bản trình diễn.";
-        return string.IsNullOrWhiteSpace(returnUrl)
-            ? RedirectToAction(nameof(Contact))
-            : LocalRedirect(returnUrl);
-    }
+        private readonly PetCareDbContext _context;
 
-    public IActionResult Error() => View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
-}
+        public HomeController(PetCareDbContext context)
+        {
+            _context = context;
+        }
+
+        public async Task<IActionResult> Index()
+        {
+            var services = await _context.ServiceCatalogs
+                .Where(service =>
+                    service.IsActive == true &&
+                    service.IsDeleted == false)
+                .Take(4)
+                .ToListAsync();
+
+            return View(services);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Pricing()
+        {
+            var services = await _context.ServiceCatalogs
+                .Include(service => service.Category)
+                .Where(service =>
+                    service.IsActive == true &&
+                    service.IsDeleted == false)
+                .OrderBy(service => service.Category.CategoryName)
+                .ThenBy(service => service.BasePrice)
+                .ToListAsync();
+
+            return View(services);
+        }
+
+        [HttpGet]
+        public IActionResult Contact()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SendContact(
+            string fullName,
+            string phoneNumber,
+            string? email,
+            string? topic,
+            string message,
+            string? returnUrl)
+        {
+            var redirectUrl = GetContactRedirectUrl(returnUrl);
+
+            if (string.IsNullOrWhiteSpace(fullName) ||
+                string.IsNullOrWhiteSpace(phoneNumber) ||
+                string.IsNullOrWhiteSpace(message))
+            {
+                TempData["ContactError"] =
+                    "Vui lòng nhập họ tên, số điện thoại và nội dung cần tư vấn.";
+
+                return Redirect(redirectUrl);
+            }
+
+            phoneNumber = PhoneNumberHelper.Normalize(phoneNumber);
+
+            if (!PhoneNumberHelper.IsValid(phoneNumber))
+            {
+                TempData["ContactError"] =
+                    "Số điện thoại chỉ gồm 9 đến 15 chữ số.";
+
+                return Redirect(redirectUrl);
+            }
+
+            var contactMessage = new ContactMessage
+            {
+                CustomerId = HttpContext.Session.GetCustomerId(),
+                FullName = fullName.Trim(),
+                PhoneNumber = phoneNumber,
+                Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim(),
+                Topic = string.IsNullOrWhiteSpace(topic)
+                    ? "Tư vấn dịch vụ"
+                    : topic.Trim(),
+                Message = message.Trim(),
+                Status = "New",
+                CreatedAt = DateTime.Now
+            };
+
+            _context.ContactMessages.Add(contactMessage);
+            await _context.SaveChangesAsync();
+
+            TempData["ContactSuccess"] =
+                "PetCare đã nhận thông tin liên hệ. Nhân viên sẽ gọi lại cho bạn trong thời gian sớm nhất.";
+
+            return Redirect(redirectUrl);
+        }
+
+        public IActionResult Privacy()
+        {
+            return View();
+        }
+
+        [ResponseCache(
+            Duration = 0,
+            Location = ResponseCacheLocation.None,
+            NoStore = true)]
+        public IActionResult Error()
+        {
+            return View(new ErrorViewModel
+            {
+                RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier
+            });
+        }
+
+        private string GetContactRedirectUrl(string? returnUrl)
+        {
+            if (!string.IsNullOrWhiteSpace(returnUrl) &&
+                Url.IsLocalUrl(returnUrl))
+            {
+                return returnUrl;
+            }
+
+            return Url.Action(nameof(Contact), "Home") ?? "/Home/Contact";
+        }
+    }
 }
 
 namespace PetcareWebsite.Data
