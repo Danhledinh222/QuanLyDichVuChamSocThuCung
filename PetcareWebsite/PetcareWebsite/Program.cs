@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 builder.Services.AddDbContext<PetCareDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddPetCareBusiness();
 builder.Services.AddSingleton<PetcareWebsite.Data.DemoStore>();
 builder.Services.AddSession(options =>
 {
