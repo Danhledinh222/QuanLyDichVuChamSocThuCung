@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PetcareWebsite.Extensions;
 using PetcareWebsite.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +26,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 app.UseSession();
+app.UseAccountSessionGuard();
 app.UseAuthorization();
 
 app.MapControllerRoute(
