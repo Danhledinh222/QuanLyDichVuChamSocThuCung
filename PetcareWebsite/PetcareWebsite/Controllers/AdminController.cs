@@ -1,12 +1,28 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using PetcareWebsite.Data;
+using PetcareWebsite.Enums;
+using PetcareWebsite.Extensions;
 using PetcareWebsite.Models;
 using PetcareWebsite.ViewModels;
 
 namespace PetcareWebsite.Controllers;
 
-public class AdminController(DemoStore store) : Controller
+public class AdminController : Controller
 {
+    private const int BookingStatusPending = (int)BookingStatusCode.Pending;
+    private const int BookingStatusConfirmed = (int)BookingStatusCode.Confirmed;
+    private const int BookingStatusInProgress = (int)BookingStatusCode.InProgress;
+
+    private readonly DemoStore store;
+    private readonly PetCareDbContext _context;
+
+    public AdminController(DemoStore store, PetCareDbContext context)
+    {
+        this.store = store;
+        _context = context;
+    }
+
     public IActionResult Index()
     {
         var model = new AdminDashboardViewModel
@@ -88,36 +104,249 @@ public class AdminController(DemoStore store) : Controller
         });
     }
 
-    public IActionResult Services(string? search, int? categoryId, string? status)
+    [HttpGet]
+    public async Task<IActionResult> Services(string? search, int? categoryId, string? status)
     {
-        var all = store.Services.ToList();
-        var filtered = all.Where(service =>
-                (string.IsNullOrWhiteSpace(search) || service.ServiceName.Contains(search, StringComparison.OrdinalIgnoreCase) || (service.Description?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)) &&
-                (!categoryId.HasValue || service.CategoryId == categoryId) &&
-                (string.IsNullOrWhiteSpace(status) || (status == "Active" ? service.IsActive == true : service.IsActive != true)))
-            .ToList();
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var allServices = _context.ServiceCatalogs
+            .Where(service => service.IsDeleted != true);
+        var query = _context.ServiceCatalogs
+            .Include(service => service.Category)
+            .Include(service => service.BookingDetails)
+            .Where(service => service.IsDeleted != true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(service =>
+                service.ServiceName.Contains(keyword) ||
+                (service.Description != null && service.Description.Contains(keyword)) ||
+                service.Category.CategoryName.Contains(keyword));
+        }
+
+        if (categoryId.HasValue)
+        {
+            query = query.Where(service => service.CategoryId == categoryId.Value);
+        }
+
+        if (string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(service => service.IsActive == true);
+        }
+        else if (string.Equals(status, "Inactive", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(service => service.IsActive != true);
+        }
+
         return View(new AdminServicesViewModel
         {
             Search = search,
             CategoryId = categoryId,
             Status = status,
-            TotalCount = all.Count,
-            ActiveCount = all.Count(service => service.IsActive == true),
-            InactiveCount = all.Count(service => service.IsActive != true),
-            Services = filtered,
-            Categories = store.Categories
+            TotalCount = await allServices.CountAsync(),
+            ActiveCount = await allServices.CountAsync(service => service.IsActive == true),
+            InactiveCount = await allServices.CountAsync(service => service.IsActive != true),
+            Services = await query
+                .OrderBy(service => service.Category.CategoryName)
+                .ThenBy(service => service.ServiceName)
+                .ToListAsync(),
+            Categories = await _context.ServiceCategories
+                .OrderBy(category => category.CategoryName)
+                .ToListAsync()
         });
     }
 
-    public IActionResult CreateService() => View("ServiceForm", ServiceEditor(null));
+    [HttpGet]
+    public async Task<IActionResult> CreateService()
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
 
-    public IActionResult EditService(int id) => View("ServiceForm", ServiceEditor(store.Services.FirstOrDefault(service => service.ServiceId == id)));
+        var model = new AdminServiceEditorViewModel
+        {
+            BasePrice = 100000,
+            EstimatedDuration = 60,
+            MaxCapacity = 1,
+            IsActive = true
+        };
+
+        await LoadServiceEditorListsAsync(model);
+        model.CategoryId = model.Categories.FirstOrDefault()?.CategoryId ?? 0;
+        return View("ServiceForm", model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EditService(int id)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var service = await _context.ServiceCatalogs
+            .Include(item => item.BookingDetails)
+            .FirstOrDefaultAsync(item => item.ServiceId == id && item.IsDeleted != true);
+
+        if (service == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy dịch vụ cần sửa.";
+            return RedirectToAction(nameof(Services));
+        }
+
+        var model = new AdminServiceEditorViewModel
+        {
+            ServiceId = service.ServiceId,
+            CategoryId = service.CategoryId,
+            ServiceName = service.ServiceName,
+            Description = service.Description,
+            BasePrice = service.BasePrice,
+            EstimatedDuration = service.EstimatedDuration,
+            MaxCapacity = service.MaxCapacity,
+            IsActive = service.IsActive == true,
+            BookingCount = service.BookingDetails.Count
+        };
+
+        await LoadServiceEditorListsAsync(model);
+        return View("ServiceForm", model);
+    }
 
     [HttpPost]
-    public IActionResult SaveService() => DemoRedirect(nameof(Services), "Thông tin dịch vụ đã được lưu trong bản trình diễn.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveService(AdminServiceEditorViewModel model)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        model.ServiceName = model.ServiceName?.Trim() ?? string.Empty;
+        model.Description = string.IsNullOrWhiteSpace(model.Description) ? null : model.Description.Trim();
+
+        if (!await _context.ServiceCategories.AnyAsync(category => category.CategoryId == model.CategoryId))
+        {
+            ModelState.AddModelError(nameof(model.CategoryId), "Danh mục dịch vụ không tồn tại.");
+        }
+
+        var serviceId = model.ServiceId ?? 0;
+        if (!string.IsNullOrWhiteSpace(model.ServiceName) &&
+            await _context.ServiceCatalogs.AnyAsync(service =>
+                service.ServiceId != serviceId &&
+                service.IsDeleted != true &&
+                service.CategoryId == model.CategoryId &&
+                service.ServiceName == model.ServiceName))
+        {
+            ModelState.AddModelError(nameof(model.ServiceName), "Danh mục này đã có dịch vụ cùng tên.");
+        }
+
+        ServiceCatalog? service = null;
+        if (model.ServiceId.HasValue)
+        {
+            service = await _context.ServiceCatalogs
+                .Include(item => item.BookingDetails)
+                .FirstOrDefaultAsync(item => item.ServiceId == model.ServiceId && item.IsDeleted != true);
+
+            if (service == null)
+            {
+                TempData["AdminError"] = "Không tìm thấy dịch vụ cần sửa.";
+                return RedirectToAction(nameof(Services));
+            }
+
+            model.BookingCount = service.BookingDetails.Count;
+        }
+
+        if (!ModelState.IsValid)
+        {
+            await LoadServiceEditorListsAsync(model);
+            return View("ServiceForm", model);
+        }
+
+        if (service == null)
+        {
+            service = new ServiceCatalog
+            {
+                CategoryId = model.CategoryId,
+                ServiceName = model.ServiceName,
+                Description = model.Description,
+                BasePrice = model.BasePrice,
+                EstimatedDuration = model.EstimatedDuration,
+                MaxCapacity = model.MaxCapacity,
+                IsActive = model.IsActive,
+                IsDeleted = false
+            };
+            _context.ServiceCatalogs.Add(service);
+        }
+        else
+        {
+            service.CategoryId = model.CategoryId;
+            service.ServiceName = model.ServiceName;
+            service.Description = model.Description;
+            service.BasePrice = model.BasePrice;
+            service.EstimatedDuration = model.EstimatedDuration;
+            service.MaxCapacity = model.MaxCapacity;
+            service.IsActive = model.IsActive;
+        }
+
+        await _context.SaveChangesAsync();
+        TempData["AdminSuccess"] = model.IsEditing
+            ? "Đã cập nhật dịch vụ. Giá mới chỉ áp dụng cho lịch hẹn được tạo hoặc cập nhật sau thời điểm này."
+            : "Đã thêm dịch vụ mới vào danh mục.";
+        return RedirectToAction(nameof(Services));
+    }
 
     [HttpPost]
-    public IActionResult ToggleServiceStatus() => DemoRedirect(nameof(Services), "Trạng thái dịch vụ đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleServiceStatus(int serviceId)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var service = await _context.ServiceCatalogs
+            .FirstOrDefaultAsync(item => item.ServiceId == serviceId && item.IsDeleted != true);
+
+        if (service == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy dịch vụ cần cập nhật.";
+            return RedirectToAction(nameof(Services));
+        }
+
+        var wasActive = service.IsActive == true;
+        service.IsActive = !wasActive;
+        await _context.SaveChangesAsync();
+
+        if (wasActive)
+        {
+            var futureBookingCount = await _context.BookingDetails.CountAsync(detail =>
+                detail.ServiceId == serviceId &&
+                detail.Booking.IsDeleted != true &&
+                ((detail.Booking.BookingDate >= DateTime.Now &&
+                  (detail.Booking.StatusId == BookingStatusPending ||
+                   detail.Booking.StatusId == BookingStatusConfirmed)) ||
+                 detail.Booking.StatusId == BookingStatusInProgress));
+
+            TempData["AdminSuccess"] = futureBookingCount > 0
+                ? $"Đã ngừng nhận đặt mới cho dịch vụ. Còn {futureBookingCount} lịch sắp tới cần tiếp tục xử lý."
+                : "Đã ngừng nhận đặt mới cho dịch vụ.";
+        }
+        else
+        {
+            TempData["AdminSuccess"] = "Đã mở lại dịch vụ cho khách hàng đặt lịch.";
+        }
+
+        return RedirectToAction(nameof(Services));
+    }
 
     public IActionResult Inventory(string? search, string? status)
     {
@@ -193,25 +422,268 @@ public class AdminController(DemoStore store) : Controller
     [HttpPost]
     public IActionResult ToggleEmployeeStatus() => DemoRedirect(nameof(Employees), "Trạng thái nhân viên đã được mô phỏng.");
 
-    public IActionResult Promotions(string? search, string? status)
+    [HttpGet]
+    public async Task<IActionResult> Promotions(string? search, string? status)
     {
-        var all = store.Promotions;
-        var filtered = all.Where(promotion =>
-                (string.IsNullOrWhiteSpace(search) || promotion.PromoCode.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
-                (string.IsNullOrWhiteSpace(status) || PromotionState(promotion) == status))
-            .ToList();
-        return View(new AdminPromotionsViewModel { Search = search, Status = status, TotalCount = all.Count, RunningCount = all.Count(promotion => PromotionState(promotion) == "Running"), ScheduledCount = all.Count(promotion => PromotionState(promotion) == "Scheduled"), EndedCount = all.Count(promotion => PromotionState(promotion) == "Ended"), InactiveCount = all.Count(promotion => PromotionState(promotion) == "Inactive"), Promotions = filtered });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var now = DateTime.Now;
+        var allPromotions = _context.Promotions.AsQueryable();
+        var query = _context.Promotions
+            .Include(promotion => promotion.Invoices)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(promotion =>
+                promotion.PromoCode.Contains(keyword) ||
+                (promotion.DiscountType != null && promotion.DiscountType.Contains(keyword)));
+        }
+
+        if (string.Equals(status, "Running", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(promotion =>
+                promotion.IsActive == true &&
+                promotion.StartDate <= now &&
+                promotion.EndDate >= now);
+        }
+        else if (string.Equals(status, "Scheduled", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(promotion => promotion.IsActive == true && promotion.StartDate > now);
+        }
+        else if (string.Equals(status, "Ended", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(promotion => promotion.IsActive == true && promotion.EndDate < now);
+        }
+        else if (string.Equals(status, "Inactive", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(promotion => promotion.IsActive != true);
+        }
+
+        return View(new AdminPromotionsViewModel
+        {
+            Search = search,
+            Status = status,
+            TotalCount = await allPromotions.CountAsync(),
+            RunningCount = await allPromotions.CountAsync(promotion =>
+                promotion.IsActive == true &&
+                promotion.StartDate <= now &&
+                promotion.EndDate >= now),
+            ScheduledCount = await allPromotions.CountAsync(promotion =>
+                promotion.IsActive == true && promotion.StartDate > now),
+            EndedCount = await allPromotions.CountAsync(promotion =>
+                promotion.IsActive == true && promotion.EndDate < now),
+            InactiveCount = await allPromotions.CountAsync(promotion => promotion.IsActive != true),
+            Promotions = await query
+                .OrderByDescending(promotion => promotion.StartDate)
+                .ThenBy(promotion => promotion.PromoCode)
+                .ToListAsync()
+        });
     }
 
-    public IActionResult CreatePromotion() => View("PromotionForm", PromotionEditor(null));
+    [HttpGet]
+    public IActionResult CreatePromotion()
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
 
-    public IActionResult EditPromotion(int id) => View("PromotionForm", PromotionEditor(store.Promotions.FirstOrDefault(promotion => promotion.PromotionId == id)));
+        return View("PromotionForm", new AdminPromotionEditorViewModel
+        {
+            DiscountType = "Percentage",
+            DiscountValue = 10,
+            MaxDiscount = 100000,
+            MinOrderValue = 0,
+            StartDate = DateTime.Today,
+            EndDate = DateTime.Today.AddMonths(1).AddDays(1).AddSeconds(-1),
+            IsActive = true
+        });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EditPromotion(int id)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var promotion = await _context.Promotions
+            .Include(item => item.Invoices)
+            .FirstOrDefaultAsync(item => item.PromotionId == id);
+
+        if (promotion == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy chương trình khuyến mãi cần sửa.";
+            return RedirectToAction(nameof(Promotions));
+        }
+
+        return View("PromotionForm", new AdminPromotionEditorViewModel
+        {
+            PromotionId = promotion.PromotionId,
+            PromoCode = promotion.PromoCode,
+            DiscountType = promotion.DiscountType ?? "Percentage",
+            DiscountValue = promotion.DiscountValue,
+            MaxDiscount = promotion.MaxDiscount,
+            MinOrderValue = promotion.MinOrderValue,
+            StartDate = promotion.StartDate,
+            EndDate = promotion.EndDate,
+            IsActive = promotion.IsActive == true,
+            InvoiceCount = promotion.Invoices.Count
+        });
+    }
 
     [HttpPost]
-    public IActionResult SavePromotion() => DemoRedirect(nameof(Promotions), "Mã khuyến mãi đã được lưu trong bản trình diễn.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SavePromotion(AdminPromotionEditorViewModel model)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        model.PromoCode = model.PromoCode?.Trim().ToUpperInvariant() ?? string.Empty;
+        model.DiscountType = model.DiscountType?.Trim() ?? string.Empty;
+        model.MinOrderValue ??= 0;
+        model.MaxDiscount ??= 0;
+
+        var allowedTypes = new[] { "Percentage", "FixedAmount" };
+        if (!allowedTypes.Contains(model.DiscountType))
+        {
+            ModelState.AddModelError(nameof(model.DiscountType), "Loại giảm giá không hợp lệ.");
+        }
+
+        if (model.DiscountType == "Percentage" && model.DiscountValue > 100)
+        {
+            ModelState.AddModelError(nameof(model.DiscountValue), "Giảm theo phần trăm không được vượt quá 100%.");
+        }
+
+        if (model.EndDate <= model.StartDate)
+        {
+            ModelState.AddModelError(nameof(model.EndDate), "Ngày kết thúc phải sau ngày bắt đầu.");
+        }
+
+        var promotionId = model.PromotionId ?? 0;
+        if (!string.IsNullOrWhiteSpace(model.PromoCode) &&
+            await _context.Promotions.AnyAsync(promotion =>
+                promotion.PromotionId != promotionId &&
+                promotion.PromoCode == model.PromoCode))
+        {
+            ModelState.AddModelError(nameof(model.PromoCode), "Mã khuyến mãi đã tồn tại.");
+        }
+
+        Promotion? promotion = null;
+        if (model.PromotionId.HasValue)
+        {
+            promotion = await _context.Promotions
+                .Include(item => item.Invoices)
+                .FirstOrDefaultAsync(item => item.PromotionId == model.PromotionId.Value);
+
+            if (promotion == null)
+            {
+                TempData["AdminError"] = "Không tìm thấy chương trình khuyến mãi cần sửa.";
+                return RedirectToAction(nameof(Promotions));
+            }
+
+            model.InvoiceCount = promotion.Invoices.Count;
+            var termsChanged = promotion.PromoCode != model.PromoCode ||
+                               promotion.DiscountType != model.DiscountType ||
+                               promotion.DiscountValue != model.DiscountValue ||
+                               (promotion.MaxDiscount ?? 0) != model.MaxDiscount ||
+                               (promotion.MinOrderValue ?? 0) != model.MinOrderValue ||
+                               promotion.StartDate != model.StartDate ||
+                               promotion.EndDate != model.EndDate;
+
+            if (model.HasUsage && termsChanged)
+            {
+                ModelState.AddModelError(string.Empty, "Mã đã được áp dụng cho hóa đơn nên không thể sửa điều kiện giảm giá. Hãy tạm ngừng mã nếu không muốn tiếp tục sử dụng.");
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return View("PromotionForm", model);
+        }
+
+        if (promotion == null)
+        {
+            promotion = new Promotion
+            {
+                PromoCode = model.PromoCode,
+                DiscountType = model.DiscountType,
+                DiscountValue = model.DiscountValue,
+                MaxDiscount = model.MaxDiscount,
+                MinOrderValue = model.MinOrderValue,
+                StartDate = model.StartDate,
+                EndDate = model.EndDate,
+                IsActive = model.IsActive,
+                CreatedAt = DateTime.Now
+            };
+            _context.Promotions.Add(promotion);
+        }
+        else
+        {
+            promotion.PromoCode = model.PromoCode;
+            promotion.DiscountType = model.DiscountType;
+            promotion.DiscountValue = model.DiscountValue;
+            promotion.MaxDiscount = model.MaxDiscount;
+            promotion.MinOrderValue = model.MinOrderValue;
+            promotion.StartDate = model.StartDate;
+            promotion.EndDate = model.EndDate;
+            promotion.IsActive = model.IsActive;
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            ModelState.AddModelError(string.Empty, "Không thể lưu khuyến mãi. Vui lòng kiểm tra mã và điều kiện giảm giá.");
+            return View("PromotionForm", model);
+        }
+
+        TempData["AdminSuccess"] = model.IsEditing
+            ? "Đã cập nhật chương trình khuyến mãi."
+            : "Đã thêm chương trình khuyến mãi mới.";
+        return RedirectToAction(nameof(Promotions));
+    }
 
     [HttpPost]
-    public IActionResult TogglePromotionStatus() => DemoRedirect(nameof(Promotions), "Trạng thái khuyến mãi đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> TogglePromotionStatus(int promotionId)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var promotion = await _context.Promotions.FindAsync(promotionId);
+        if (promotion == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy mã khuyến mãi cần cập nhật.";
+            return RedirectToAction(nameof(Promotions));
+        }
+
+        var wasActive = promotion.IsActive == true;
+        promotion.IsActive = !wasActive;
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = wasActive
+            ? "Đã tạm ngừng mã khuyến mãi. Hóa đơn đã áp dụng trước đó vẫn giữ nguyên số tiền giảm."
+            : "Đã mở lại mã khuyến mãi.";
+        return RedirectToAction(nameof(Promotions));
+    }
 
     public IActionResult Reviews(string? search, int? rating, string? status)
     {
@@ -300,20 +772,6 @@ public class AdminController(DemoStore store) : Controller
     [HttpPost]
     public IActionResult UpdateContactStatus() => DemoRedirect(nameof(Contacts), "Liên hệ đã được xử lý trong bản trình diễn.");
 
-    private AdminServiceEditorViewModel ServiceEditor(ServiceCatalog? service) => new()
-    {
-        ServiceId = service?.ServiceId,
-        CategoryId = service?.CategoryId ?? store.Categories.First().CategoryId,
-        ServiceName = service?.ServiceName ?? string.Empty,
-        Description = service?.Description,
-        BasePrice = service?.BasePrice ?? 150000,
-        EstimatedDuration = service?.EstimatedDuration ?? 45,
-        MaxCapacity = service?.MaxCapacity ?? 2,
-        IsActive = service?.IsActive ?? true,
-        BookingCount = service?.BookingDetails.Count ?? 0,
-        Categories = store.Categories
-    };
-
     private AdminEmployeeEditorViewModel EmployeeEditor(Employee? employee) => new()
     {
         EmployeeId = employee?.EmployeeId,
@@ -326,20 +784,6 @@ public class AdminController(DemoStore store) : Controller
         AssignmentCount = employee?.BookingDetailEmployees.Count ?? 0,
         UpcomingAssignmentCount = 1,
         Roles = store.Roles.Where(role => role.RoleId != 1).ToList()
-    };
-
-    private AdminPromotionEditorViewModel PromotionEditor(Promotion? promotion) => new()
-    {
-        PromotionId = promotion?.PromotionId,
-        PromoCode = promotion?.PromoCode ?? string.Empty,
-        DiscountType = promotion?.DiscountType ?? "Percentage",
-        DiscountValue = promotion?.DiscountValue ?? 10,
-        MaxDiscount = promotion?.MaxDiscount,
-        MinOrderValue = promotion?.MinOrderValue ?? 200000,
-        StartDate = promotion?.StartDate ?? DateTime.Today,
-        EndDate = promotion?.EndDate ?? DateTime.Today.AddDays(30),
-        IsActive = promotion?.IsActive ?? true,
-        InvoiceCount = promotion?.Invoices.Count ?? 0
     };
 
     private AdminPetEditorViewModel PetEditor(Pet? pet, Customer customer) => new()
@@ -384,6 +828,28 @@ public class AdminController(DemoStore store) : Controller
     {
         TempData["AdminSuccess"] = message;
         return RedirectToAction(action, values);
+    }
+
+    private async Task LoadServiceEditorListsAsync(AdminServiceEditorViewModel model)
+    {
+        model.Categories = await _context.ServiceCategories
+            .OrderBy(category => category.CategoryName)
+            .ToListAsync();
+    }
+
+    private IActionResult? GetAdminAccessRedirect()
+    {
+        if (HttpContext.Session.GetAccountId() == null)
+        {
+            return RedirectToAction("Login", "Account");
+        }
+
+        if (!HttpContext.Session.IsAdmin())
+        {
+            return RedirectToAction("Index", "Home");
+        }
+
+        return null;
     }
 
     private static string PromotionState(Promotion promotion)
