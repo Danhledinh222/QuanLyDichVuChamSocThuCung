@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using PetcareWebsite.Extensions;
 using PetcareWebsite.Helpers;
 using PetcareWebsite.Models;
+using PetcareWebsite.Validation;
 
 namespace PetcareWebsite.Controllers
 {
@@ -804,12 +805,28 @@ namespace PetcareWebsite.ViewModels
     public class AdminPromotionEditorViewModel
     {
         public int? PromotionId { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng nhập mã khuyến mãi.")]
+        [StringLength(20, ErrorMessage = "Mã khuyến mãi tối đa 20 ký tự.")]
+        [PromotionCode]
         public string PromoCode { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Vui lòng chọn loại giảm giá.")]
         public string DiscountType { get; set; } = "Percentage";
+
+        [Range(0.01, 100000000, ErrorMessage = "Giá trị giảm phải lớn hơn 0.")]
         public decimal DiscountValue { get; set; }
+
+        [Range(0, 100000000, ErrorMessage = "Mức giảm tối đa không hợp lệ.")]
         public decimal? MaxDiscount { get; set; }
+
+        [Range(0, 100000000, ErrorMessage = "Giá trị đơn tối thiểu không hợp lệ.")]
         public decimal? MinOrderValue { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng chọn ngày bắt đầu.")]
         public DateTime StartDate { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng chọn ngày kết thúc.")]
         public DateTime EndDate { get; set; }
 
         public bool IsActive { get; set; } = true;
