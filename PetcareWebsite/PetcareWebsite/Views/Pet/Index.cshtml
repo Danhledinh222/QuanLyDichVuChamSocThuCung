@@ -1,4 +1,5 @@
 @model IEnumerable<PetcareWebsite.Models.Pet>
+@using PetcareWebsite.Enums
 
 @{
     ViewData["Title"] = "Thú cưng của tôi | PetCare";
@@ -15,11 +16,11 @@
     {
         return statusId switch
         {
-            2 => "Đã xác nhận",
-            3 => "Đã hoàn thành",
-            4 => "Đã hủy",
-            5 => "Đã hết hạn",
-            6 => "Đang thực hiện",
+            (int)BookingStatusCode.Confirmed => "Đã xác nhận",
+            (int)BookingStatusCode.Completed => "Đã hoàn thành",
+            (int)BookingStatusCode.Cancelled => "Đã hủy",
+            (int)BookingStatusCode.Expired => "Đã hết hạn",
+            (int)BookingStatusCode.InProgress => "Đang thực hiện",
             _ => "Chờ xác nhận"
         };
     }
@@ -28,11 +29,11 @@
     {
         return statusId switch
         {
-            2 => "confirmed",
-            3 => "completed",
-            4 => "cancelled",
-            5 => "expired",
-            6 => "progress",
+            (int)BookingStatusCode.Confirmed => "confirmed",
+            (int)BookingStatusCode.Completed => "completed",
+            (int)BookingStatusCode.Cancelled => "cancelled",
+            (int)BookingStatusCode.Expired => "expired",
+            (int)BookingStatusCode.InProgress => "progress",
             _ => "pending"
         };
     }
@@ -143,7 +144,7 @@
 
                 @foreach (var pet in pets)
                 {
-                    var petImage = pet.SpeciesId == 1
+                    var petImage = pet.SpeciesId == (int)PetSpeciesCode.Dog
                         ? Url.Content("~/images/pets/dog-profile.jpg")
                         : Url.Content("~/images/pets/cat.jpg");
 
