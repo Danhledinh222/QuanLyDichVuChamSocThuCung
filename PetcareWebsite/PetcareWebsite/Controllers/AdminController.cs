@@ -753,19 +753,128 @@ public class AdminController : Controller
         return RedirectToAction(nameof(Promotions));
     }
 
-    public IActionResult Reviews(string? search, int? rating, string? status)
+    [HttpGet]
+    public async Task<IActionResult> Reviews(string? search, int? rating, string? status)
     {
-        var all = store.Reviews;
-        var filtered = all.Where(review =>
-                (string.IsNullOrWhiteSpace(search) || (review.Content?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) || review.Customer.FullName.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
-                (!rating.HasValue || review.Rating == rating) &&
-                (string.IsNullOrWhiteSpace(status) || ReviewState(review) == status))
-            .ToList();
-        return View(new AdminReviewsViewModel { Search = search, Rating = rating, Status = status, TotalCount = all.Count, VisibleCount = all.Count(review => review.IsVisible == true), HiddenCount = all.Count(review => review.IsVisible != true), AwaitingReplyCount = all.Count(review => string.IsNullOrWhiteSpace(review.StoreReply)), RepliedCount = all.Count(review => !string.IsNullOrWhiteSpace(review.StoreReply)), AverageRating = all.Any() ? (decimal)all.Average(review => review.Rating) : 0, Reviews = filtered });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var allReviews = _context.ServiceReviews.AsQueryable();
+        var query = _context.ServiceReviews
+            .Include(review => review.Customer)
+            .Include(review => review.BookingDetail)
+                .ThenInclude(detail => detail.Booking)
+            .Include(review => review.BookingDetail)
+                .ThenInclude(detail => detail.Pet)
+            .Include(review => review.BookingDetail)
+                .ThenInclude(detail => detail.Service)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(review =>
+                review.Customer.FullName.Contains(keyword) ||
+                review.Customer.PhoneNumber.Contains(keyword) ||
+                review.BookingDetail.Service.ServiceName.Contains(keyword) ||
+                (review.Content != null && review.Content.Contains(keyword)));
+        }
+
+        if (rating.HasValue && rating.Value >= 1 && rating.Value <= 5)
+        {
+            query = query.Where(review => review.Rating == rating.Value);
+        }
+        else
+        {
+            rating = null;
+        }
+
+        if (string.Equals(status, "Visible", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(review => review.IsVisible == true || review.IsVisible == null);
+        }
+        else if (string.Equals(status, "Hidden", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(review => review.IsVisible == false);
+        }
+        else if (string.Equals(status, "AwaitingReply", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(review => review.StoreReply == null || review.StoreReply == string.Empty);
+        }
+        else if (string.Equals(status, "Replied", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(review => review.StoreReply != null && review.StoreReply != string.Empty);
+        }
+        else
+        {
+            status = null;
+        }
+
+        var reviewCount = await allReviews.CountAsync();
+        var model = new AdminReviewsViewModel
+        {
+            Search = search,
+            Rating = rating,
+            Status = status,
+            TotalCount = reviewCount,
+            VisibleCount = await allReviews.CountAsync(review => review.IsVisible == true || review.IsVisible == null),
+            HiddenCount = await allReviews.CountAsync(review => review.IsVisible == false),
+            AwaitingReplyCount = await allReviews.CountAsync(review =>
+                review.StoreReply == null || review.StoreReply == string.Empty),
+            RepliedCount = await allReviews.CountAsync(review =>
+                review.StoreReply != null && review.StoreReply != string.Empty),
+            AverageRating = reviewCount == 0
+                ? 0
+                : Math.Round(await allReviews.AverageAsync(review => (decimal)review.Rating), 1),
+            Reviews = await query
+                .OrderByDescending(review => review.CreatedAt)
+                .ThenByDescending(review => review.ReviewId)
+                .ToListAsync()
+        };
+
+        return View(model);
     }
 
     [HttpPost]
-    public IActionResult UpdateReviewModeration() => DemoRedirect(nameof(Reviews), "Phản hồi đánh giá đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateReviewModeration(
+        int reviewId,
+        bool isVisible,
+        string? storeReply,
+        string? search,
+        int? rating,
+        string? status)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var review = await _context.ServiceReviews.FindAsync(reviewId);
+        if (review == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy đánh giá cần cập nhật.";
+            return RedirectToAction(nameof(Reviews), new { search, rating, status });
+        }
+
+        var reply = string.IsNullOrWhiteSpace(storeReply) ? null : storeReply.Trim();
+        if (reply?.Length > 1000)
+        {
+            TempData["AdminError"] = "Phản hồi cửa hàng không được vượt quá 1000 ký tự.";
+            return RedirectToAction(nameof(Reviews), new { search, rating, status });
+        }
+
+        review.IsVisible = isVisible;
+        review.StoreReply = reply;
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = "Đã cập nhật xử lý đánh giá.";
+        return RedirectToAction(nameof(Reviews), new { search, rating, status });
+    }
 
     public IActionResult Customers(string? search, string? customerType)
     {
