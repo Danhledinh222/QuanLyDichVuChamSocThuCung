@@ -20,6 +20,9 @@ public class AdminController : Controller
     private const int BookingStatusCancelled = (int)BookingStatusCode.Cancelled;
     private const int BookingStatusExpired = (int)BookingStatusCode.Expired;
     private const int DetailStatusNotStarted = (int)DetailStatusCode.NotStarted;
+    private const int DetailStatusInProgress = (int)DetailStatusCode.InProgress;
+    private const int DetailStatusDone = (int)DetailStatusCode.Done;
+    private const int DetailStatusCancelled = (int)DetailStatusCode.Cancelled;
 
     private readonly DemoStore store;
     private readonly PetCareDbContext _context;
@@ -1174,7 +1177,151 @@ public class AdminController : Controller
     }
 
     [HttpPost]
-    public IActionResult UpdateBookingStatus() => DemoRedirect(nameof(Bookings), "Trạng thái lịch và phân công đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateBookingStatus(int bookingId, int? assignedEmployeeId, int? statusId)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        await _bookingBusiness.MarkExpiredBookingsAsync();
+
+        var allowedStatuses = new[]
+        {
+            BookingStatusConfirmed,
+            BookingStatusInProgress,
+            BookingStatusCompleted,
+            BookingStatusCancelled
+        };
+
+        if (statusId.HasValue && !allowedStatuses.Contains(statusId.Value))
+        {
+            TempData["AdminError"] = "Trạng thái lịch hẹn không hợp lệ.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var booking = await _context.Bookings
+            .Include(item => item.BookingDetails)
+                .ThenInclude(detail => detail.BookingDetailEmployees)
+            .FirstOrDefaultAsync(item => item.BookingId == bookingId && item.IsDeleted != true);
+
+        if (booking == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy lịch hẹn cần cập nhật.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        if (booking.StatusId == BookingStatusCompleted ||
+            booking.StatusId == BookingStatusCancelled ||
+            booking.StatusId == BookingStatusExpired)
+        {
+            TempData["AdminError"] = "Lịch đã chốt hoặc hết hạn không thể phân công trực tiếp. Hãy dời lịch nếu cần tiếp tục xử lý.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        if (booking.BookingDetails.Count == 0)
+        {
+            TempData["AdminError"] = "Lịch hẹn không có chi tiết dịch vụ để phân công.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var currentEmployeeId = booking.BookingDetails
+            .SelectMany(detail => detail.BookingDetailEmployees)
+            .Select(assignment => (int?)assignment.EmployeeId)
+            .FirstOrDefault();
+        if (booking.StatusId == BookingStatusInProgress && assignedEmployeeId != currentEmployeeId)
+        {
+            TempData["AdminError"] = "Dịch vụ đang thực hiện không thể đổi nhân viên phụ trách.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        if (assignedEmployeeId.HasValue &&
+            !await _context.Employees.AnyAsync(employee =>
+                employee.EmployeeId == assignedEmployeeId.Value &&
+                employee.RoleId != AdminRoleId &&
+                employee.IsActive == true &&
+                employee.IsDeleted != true))
+        {
+            TempData["AdminError"] = "Nhân viên phụ trách không khả dụng.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var nextStatusId = statusId ?? booking.StatusId;
+        var transitionValidation = _bookingBusiness.ValidateStatusTransition(
+            booking,
+            nextStatusId,
+            assignedEmployeeId.HasValue);
+        if (!transitionValidation.Succeeded)
+        {
+            TempData["AdminError"] = transitionValidation.ErrorMessage;
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        if (assignedEmployeeId.HasValue)
+        {
+            var firstDetail = booking.BookingDetails.First();
+            var availabilityValidation = await _bookingBusiness.ValidateAvailabilityAsync(
+                booking.BookingDate,
+                firstDetail.ServiceId,
+                assignedEmployeeId,
+                booking.BookingId);
+            if (!availabilityValidation.Succeeded)
+            {
+                TempData["AdminError"] = availabilityValidation.ErrorMessage;
+                return RedirectToAction(nameof(Bookings));
+            }
+        }
+
+        var now = DateTime.Now;
+        foreach (var detail in booking.BookingDetails)
+        {
+            var keepsCurrentAssignment = detail.BookingDetailEmployees.Count == 1 &&
+                                         detail.BookingDetailEmployees.First().EmployeeId == assignedEmployeeId;
+            if (!keepsCurrentAssignment)
+            {
+                _context.BookingDetailEmployees.RemoveRange(detail.BookingDetailEmployees);
+                if (assignedEmployeeId.HasValue)
+                {
+                    _context.BookingDetailEmployees.Add(new BookingDetailEmployee
+                    {
+                        BookingDetailId = detail.BookingDetailId,
+                        EmployeeId = assignedEmployeeId.Value,
+                        AssignedAt = now
+                    });
+                }
+            }
+
+            if (nextStatusId == BookingStatusInProgress)
+            {
+                detail.StatusId = DetailStatusInProgress;
+                detail.StartTime ??= now;
+                detail.EndTime = null;
+                detail.ModifiedAt = now;
+            }
+            else if (nextStatusId == BookingStatusCompleted)
+            {
+                detail.StatusId = DetailStatusDone;
+                detail.EndTime = now;
+                detail.ModifiedAt = now;
+            }
+            else if (nextStatusId == BookingStatusCancelled)
+            {
+                detail.StatusId = DetailStatusCancelled;
+                detail.ModifiedAt = now;
+            }
+        }
+
+        booking.StatusId = nextStatusId;
+        booking.ModifiedAt = now;
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = statusId.HasValue
+            ? "Đã lưu phân công và cập nhật trạng thái lịch hẹn."
+            : "Đã lưu nhân viên phụ trách lịch hẹn.";
+        return RedirectToAction(nameof(Bookings));
+    }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
