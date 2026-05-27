@@ -921,49 +921,478 @@ public class AdminController : Controller
         return RedirectToAction(nameof(Reviews), new { search, rating, status });
     }
 
-    public IActionResult Customers(string? search, string? customerType)
+    [HttpGet]
+    public async Task<IActionResult> Customers(string? search, string? customerType)
     {
-        var all = store.Customers;
-        var filtered = all.Where(customer =>
-                (string.IsNullOrWhiteSpace(search) || customer.FullName.Contains(search, StringComparison.OrdinalIgnoreCase) || customer.PhoneNumber.Contains(search)) &&
-                (string.IsNullOrWhiteSpace(customerType) || (customerType == "Member" ? customer.AccountId.HasValue : !customer.AccountId.HasValue)))
-            .ToList();
-        return View(new AdminCustomersViewModel { Search = search, CustomerType = customerType, TotalCount = all.Count, MemberCount = all.Count(customer => customer.AccountId.HasValue), GuestCount = all.Count(customer => !customer.AccountId.HasValue), PetCount = store.Pets.Count, Customers = filtered });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var allCustomers = _context.Customers
+            .Where(customer => customer.IsDeleted != true);
+        var query = _context.Customers
+            .Include(customer => customer.Account)
+            .Include(customer => customer.Pets)
+            .Include(customer => customer.Bookings)
+            .Where(customer => customer.IsDeleted != true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(customer =>
+                customer.FullName.Contains(keyword) ||
+                customer.PhoneNumber.Contains(keyword) ||
+                (customer.Email != null && customer.Email.Contains(keyword)));
+        }
+
+        if (customerType == "Member")
+        {
+            query = query.Where(customer => customer.AccountId != null);
+        }
+        else if (customerType == "Guest")
+        {
+            query = query.Where(customer => customer.AccountId == null);
+        }
+
+        return View(new AdminCustomersViewModel
+        {
+            Search = search,
+            CustomerType = customerType,
+            TotalCount = await allCustomers.CountAsync(),
+            MemberCount = await allCustomers.CountAsync(customer => customer.AccountId != null),
+            GuestCount = await allCustomers.CountAsync(customer => customer.AccountId == null),
+            PetCount = await _context.Pets.CountAsync(pet =>
+                pet.IsDeleted != true && pet.Customer.IsDeleted != true),
+            Customers = await query
+                .OrderBy(customer => customer.FullName)
+                .ToListAsync()
+        });
     }
 
-    public IActionResult CustomerDetails(int id)
+    [HttpGet]
+    public async Task<IActionResult> CustomerDetails(int id)
     {
-        var customer = store.Customers.FirstOrDefault(item => item.CustomerId == id) ?? store.MemberCustomer;
-        return View(new AdminCustomerDetailViewModel { Customer = customer, Bookings = customer.Bookings.OrderByDescending(booking => booking.BookingDate).ToList(), TotalPaid = customer.Bookings.Sum(booking => booking.Invoice?.PaidAmount ?? 0) });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        await _bookingBusiness.MarkExpiredBookingsAsync();
+
+        var customer = await _context.Customers
+            .Include(item => item.Account)
+            .Include(item => item.Pets)
+                .ThenInclude(pet => pet.Species)
+            .Include(item => item.Pets)
+                .ThenInclude(pet => pet.PetBreed)
+            .FirstOrDefaultAsync(item => item.CustomerId == id && item.IsDeleted != true);
+
+        if (customer == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy hồ sơ khách hàng.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        var bookings = await _context.Bookings
+            .Include(booking => booking.Status)
+            .Include(booking => booking.Invoice)
+            .Include(booking => booking.BookingDetails)
+                .ThenInclude(detail => detail.Service)
+            .Where(booking => booking.CustomerId == id && booking.IsDeleted != true)
+            .OrderByDescending(booking => booking.BookingDate)
+            .ToListAsync();
+
+        return View(new AdminCustomerDetailViewModel
+        {
+            Customer = customer,
+            Bookings = bookings,
+            TotalPaid = bookings.Sum(booking => booking.Invoice?.PaidAmount ?? 0)
+        });
     }
 
-    public IActionResult CreateCustomer() => View("CustomerForm", new AdminCustomerEditorViewModel());
-
-    public IActionResult EditCustomer(int id)
+    [HttpGet]
+    public IActionResult CreateCustomer()
     {
-        var customer = store.Customers.First(item => item.CustomerId == id);
-        return View("CustomerForm", new AdminCustomerEditorViewModel { CustomerId = customer.CustomerId, AccountId = customer.AccountId, FullName = customer.FullName, PhoneNumber = customer.PhoneNumber, Email = customer.Email, Address = customer.Address });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        return View("CustomerForm", new AdminCustomerEditorViewModel());
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EditCustomer(int id)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var customer = await _context.Customers
+            .FirstOrDefaultAsync(item => item.CustomerId == id && item.IsDeleted != true);
+
+        if (customer == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy hồ sơ khách hàng cần sửa.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        return View("CustomerForm", new AdminCustomerEditorViewModel
+        {
+            CustomerId = customer.CustomerId,
+            AccountId = customer.AccountId,
+            FullName = customer.FullName,
+            PhoneNumber = customer.PhoneNumber,
+            Email = customer.Email,
+            Address = customer.Address
+        });
     }
 
     [HttpPost]
-    public IActionResult SaveCustomer() => DemoRedirect(nameof(Customers), "Hồ sơ khách hàng đã được lưu trong bản trình diễn.");
-
-    [HttpPost]
-    public IActionResult ToggleCustomerAccountStatus() => DemoRedirect(nameof(Customers), "Trạng thái tài khoản đã được mô phỏng.");
-
-    public IActionResult CreatePet(int customerId) => View("PetForm", PetEditor(null, store.Customers.FirstOrDefault(customer => customer.CustomerId == customerId) ?? store.MemberCustomer));
-
-    public IActionResult EditPet(int id)
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveCustomer(AdminCustomerEditorViewModel model)
     {
-        var pet = store.Pets.First(item => item.PetId == id);
-        return View("PetForm", PetEditor(pet, pet.Customer));
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        Customer? customer = null;
+        if (model.CustomerId.HasValue)
+        {
+            customer = await _context.Customers
+                .Include(item => item.Account)
+                .FirstOrDefaultAsync(item =>
+                    item.CustomerId == model.CustomerId.Value && item.IsDeleted != true);
+
+            if (customer == null)
+            {
+                TempData["AdminError"] = "Không tìm thấy hồ sơ khách hàng cần sửa.";
+                return RedirectToAction(nameof(Customers));
+            }
+
+            model.AccountId = customer.AccountId;
+        }
+
+        model.FullName = model.FullName?.Trim() ?? string.Empty;
+        model.PhoneNumber = model.PhoneNumber?.Trim() ?? string.Empty;
+        model.Email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
+        model.Address = string.IsNullOrWhiteSpace(model.Address) ? null : model.Address.Trim();
+
+        if (string.IsNullOrWhiteSpace(model.FullName))
+        {
+            ModelState.AddModelError(nameof(model.FullName), "Vui lòng nhập họ tên khách hàng.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.PhoneNumber))
+        {
+            ModelState.AddModelError(nameof(model.PhoneNumber), "Vui lòng nhập số điện thoại.");
+        }
+
+        var existingId = model.CustomerId ?? 0;
+        if (!string.IsNullOrWhiteSpace(model.PhoneNumber) &&
+            await _context.Customers.AnyAsync(item =>
+                item.PhoneNumber == model.PhoneNumber && item.CustomerId != existingId))
+        {
+            ModelState.AddModelError(nameof(model.PhoneNumber), "Số điện thoại đã thuộc về một hồ sơ khách hàng khác.");
+        }
+
+        if (model.Email != null &&
+            await _context.Customers.AnyAsync(item =>
+                item.Email == model.Email && item.CustomerId != existingId))
+        {
+            ModelState.AddModelError(nameof(model.Email), "Email đã thuộc về một hồ sơ khách hàng khác.");
+        }
+
+        if (customer?.Account != null &&
+            customer.PhoneNumber != model.PhoneNumber &&
+            await _context.Accounts.AnyAsync(account =>
+                account.Username == model.PhoneNumber && account.AccountId != customer.AccountId))
+        {
+            ModelState.AddModelError(nameof(model.PhoneNumber), "Số điện thoại đang được dùng làm tài khoản đăng nhập khác.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return View("CustomerForm", model);
+        }
+
+        var now = DateTime.Now;
+        if (customer == null)
+        {
+            customer = new Customer
+            {
+                FullName = model.FullName,
+                PhoneNumber = model.PhoneNumber,
+                Email = model.Email,
+                Address = model.Address,
+                CreatedAt = now,
+                IsDeleted = false
+            };
+            _context.Customers.Add(customer);
+        }
+        else
+        {
+            if (customer.Account != null && customer.PhoneNumber != model.PhoneNumber)
+            {
+                customer.Account.Username = model.PhoneNumber;
+            }
+
+            customer.FullName = model.FullName;
+            customer.PhoneNumber = model.PhoneNumber;
+            customer.Email = model.Email;
+            customer.Address = model.Address;
+            customer.ModifiedAt = now;
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            ModelState.AddModelError(string.Empty, "Không thể lưu khách hàng. Vui lòng kiểm tra số điện thoại hoặc email.");
+            return View("CustomerForm", model);
+        }
+
+        TempData["AdminSuccess"] = model.IsEditing
+            ? "Đã cập nhật hồ sơ khách hàng."
+            : "Đã thêm hồ sơ khách vãng lai. Bạn có thể thêm thú cưng và tạo lịch hẹn cho khách này.";
+
+        return RedirectToAction(nameof(CustomerDetails), new { id = customer.CustomerId });
     }
 
     [HttpPost]
-    public IActionResult SavePet(AdminPetEditorViewModel model) => DemoRedirect(nameof(CustomerDetails), "Thông tin thú cưng đã được lưu trong bản trình diễn.", new { id = model.CustomerId > 0 ? model.CustomerId : store.MemberCustomer.CustomerId });
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleCustomerAccountStatus(int customerId)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var customer = await _context.Customers
+            .Include(item => item.Account)
+            .FirstOrDefaultAsync(item =>
+                item.CustomerId == customerId && item.IsDeleted != true);
+
+        if (customer == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy hồ sơ khách hàng.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        if (!customer.AccountId.HasValue || customer.Account == null)
+        {
+            TempData["AdminError"] = "Khách vãng lai không có tài khoản để khóa.";
+            return RedirectToAction(nameof(CustomerDetails), new { id = customerId });
+        }
+
+        var isActive = customer.Account.IsActive == true;
+        customer.Account.IsActive = !isActive;
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = isActive
+            ? "Đã khóa tài khoản thành viên. Khách hàng không thể đăng nhập hoặc tiếp tục dùng phiên hiện tại."
+            : "Đã mở khóa tài khoản thành viên. Khách hàng có thể đăng nhập lại.";
+
+        return RedirectToAction(nameof(CustomerDetails), new { id = customerId });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> CreatePet(int customerId)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var customer = await _context.Customers
+            .FirstOrDefaultAsync(item => item.CustomerId == customerId && item.IsDeleted != true);
+
+        if (customer == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy khách hàng để thêm thú cưng.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        var model = new AdminPetEditorViewModel
+        {
+            CustomerId = customer.CustomerId,
+            CustomerName = customer.FullName
+        };
+        await LoadPetEditorListsAsync(model);
+        model.SpeciesId = model.Species.FirstOrDefault()?.SpeciesId ?? 0;
+
+        return View("PetForm", model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EditPet(int id)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var pet = await _context.Pets
+            .Include(item => item.Customer)
+            .FirstOrDefaultAsync(item => item.PetId == id && item.Customer.IsDeleted != true);
+
+        if (pet == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy thú cưng cần sửa.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        var model = new AdminPetEditorViewModel
+        {
+            PetId = pet.PetId,
+            CustomerId = pet.CustomerId,
+            CustomerName = pet.Customer.FullName,
+            Name = pet.Name,
+            SpeciesId = pet.SpeciesId,
+            BreedId = pet.BreedId,
+            Weight = pet.Weight,
+            Notes = pet.Notes
+        };
+        await LoadPetEditorListsAsync(model);
+
+        return View("PetForm", model);
+    }
 
     [HttpPost]
-    public IActionResult TogglePetStatus() => DemoRedirect(nameof(Customers), "Trạng thái thú cưng đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SavePet(AdminPetEditorViewModel model)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var customer = await _context.Customers
+            .FirstOrDefaultAsync(item => item.CustomerId == model.CustomerId && item.IsDeleted != true);
+        if (customer == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy khách hàng của thú cưng.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        model.CustomerName = customer.FullName;
+        model.Name = model.Name?.Trim() ?? string.Empty;
+        model.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
+
+        if (!await _context.PetBreeds.AnyAsync(breed =>
+            breed.BreedId == model.BreedId && breed.SpeciesId == model.SpeciesId))
+        {
+            ModelState.AddModelError(nameof(model.BreedId), "Giống thú cưng không thuộc loại đã chọn.");
+        }
+
+        Pet? pet = null;
+        if (model.PetId.HasValue)
+        {
+            pet = await _context.Pets.FirstOrDefaultAsync(item =>
+                item.PetId == model.PetId.Value && item.CustomerId == model.CustomerId);
+
+            if (pet == null)
+            {
+                TempData["AdminError"] = "Không tìm thấy thú cưng cần sửa.";
+                return RedirectToAction(nameof(CustomerDetails), new { id = model.CustomerId });
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            await LoadPetEditorListsAsync(model);
+            return View("PetForm", model);
+        }
+
+        var now = DateTime.Now;
+        if (pet == null)
+        {
+            pet = new Pet
+            {
+                CustomerId = model.CustomerId,
+                Name = model.Name,
+                SpeciesId = model.SpeciesId,
+                BreedId = model.BreedId,
+                Weight = model.Weight,
+                Notes = model.Notes,
+                CreatedAt = now,
+                IsDeleted = false
+            };
+            _context.Pets.Add(pet);
+        }
+        else
+        {
+            pet.Name = model.Name;
+            pet.SpeciesId = model.SpeciesId;
+            pet.BreedId = model.BreedId;
+            pet.Weight = model.Weight;
+            pet.Notes = model.Notes;
+            pet.ModifiedAt = now;
+        }
+
+        await _context.SaveChangesAsync();
+        TempData["AdminSuccess"] = model.IsEditing
+            ? "Đã cập nhật thông tin thú cưng."
+            : "Đã thêm thú cưng vào hồ sơ khách hàng.";
+
+        return RedirectToAction(nameof(CustomerDetails), new { id = model.CustomerId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> TogglePetStatus(int petId)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var pet = await _context.Pets
+            .Include(item => item.Customer)
+            .FirstOrDefaultAsync(item => item.PetId == petId && item.Customer.IsDeleted != true);
+        if (pet == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy thú cưng cần cập nhật.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        var isActive = pet.IsDeleted != true;
+        if (isActive && await _context.BookingDetails.AnyAsync(detail =>
+            detail.PetId == petId &&
+            detail.Booking.IsDeleted != true &&
+            ((detail.Booking.BookingDate >= DateTime.Now &&
+              (detail.Booking.StatusId == BookingStatusPending ||
+               detail.Booking.StatusId == BookingStatusConfirmed)) ||
+             detail.Booking.StatusId == BookingStatusInProgress)))
+        {
+            TempData["AdminError"] = "Thú cưng đang có lịch hẹn sắp tới nên chưa thể ngừng sử dụng hồ sơ.";
+            return RedirectToAction(nameof(CustomerDetails), new { id = pet.CustomerId });
+        }
+
+        pet.IsDeleted = isActive;
+        pet.ModifiedAt = DateTime.Now;
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = isActive
+            ? "Đã ngừng sử dụng hồ sơ thú cưng."
+            : "Đã kích hoạt lại hồ sơ thú cưng.";
+        return RedirectToAction(nameof(CustomerDetails), new { id = pet.CustomerId });
+    }
 
     [HttpGet]
     public async Task<IActionResult> CreateBooking()
@@ -1742,6 +2171,16 @@ public class AdminController : Controller
                 employee.IsDeleted != true)
             .OrderBy(employee => employee.FullName)
             .ToListAsync();
+        model.Species = await _context.PetSpecies
+            .OrderBy(species => species.SpeciesName)
+            .ToListAsync();
+        model.Breeds = await _context.PetBreeds
+            .OrderBy(breed => breed.BreedName)
+            .ToListAsync();
+    }
+
+    private async Task LoadPetEditorListsAsync(AdminPetEditorViewModel model)
+    {
         model.Species = await _context.PetSpecies
             .OrderBy(species => species.SpeciesName)
             .ToListAsync();
