@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using PetcareWebsite.Data;
 using PetcareWebsite.Enums;
 using PetcareWebsite.Extensions;
+using PetcareWebsite.Helpers;
 using PetcareWebsite.Models;
 using PetcareWebsite.Services;
 using PetcareWebsite.ViewModels;
@@ -18,6 +19,7 @@ public class AdminController : Controller
     private const int BookingStatusInProgress = (int)BookingStatusCode.InProgress;
     private const int BookingStatusCancelled = (int)BookingStatusCode.Cancelled;
     private const int BookingStatusExpired = (int)BookingStatusCode.Expired;
+    private const int DetailStatusNotStarted = (int)DetailStatusCode.NotStarted;
 
     private readonly DemoStore store;
     private readonly PetCareDbContext _context;
@@ -960,12 +962,216 @@ public class AdminController : Controller
     [HttpPost]
     public IActionResult TogglePetStatus() => DemoRedirect(nameof(Customers), "Trạng thái thú cưng đã được mô phỏng.");
 
-    public IActionResult CreateBooking() => View("BookingForm", BookingEditor(null));
+    [HttpGet]
+    public async Task<IActionResult> CreateBooking()
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
 
-    public IActionResult EditBooking(int id) => View("BookingForm", BookingEditor(store.Bookings.FirstOrDefault(booking => booking.BookingId == id)));
+        var model = new AdminBookingEditorViewModel
+        {
+            BookingDate = DateTime.Today.AddDays(1).AddHours(9),
+            StatusId = BookingStatusPending,
+            CustomerMode = "Existing"
+        };
+
+        await LoadBookingEditorListsAsync(model);
+        return View("BookingForm", model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EditBooking(int id)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var booking = await _context.Bookings
+            .Include(item => item.Invoice)
+            .Include(item => item.BookingDetails)
+                .ThenInclude(detail => detail.BookingDetailEmployees)
+            .FirstOrDefaultAsync(item => item.BookingId == id && item.IsDeleted != true);
+
+        if (booking == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy lịch hẹn cần sửa.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        if (booking.StatusId == BookingStatusCompleted ||
+            booking.StatusId == BookingStatusCancelled ||
+            booking.StatusId == BookingStatusInProgress)
+        {
+            TempData["AdminError"] = "Lịch đã bắt đầu thực hiện, đã hoàn thành hoặc đã hủy không thể sửa thông tin.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var detail = booking.BookingDetails.FirstOrDefault();
+        if (detail == null)
+        {
+            TempData["AdminError"] = "Lịch hẹn không có chi tiết dịch vụ để sửa.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var model = new AdminBookingEditorViewModel
+        {
+            BookingId = booking.BookingId,
+            BookingCode = booking.BookingCode,
+            CustomerId = booking.CustomerId,
+            PetId = detail.PetId,
+            ServiceId = detail.ServiceId,
+            BookingDate = booking.BookingDate,
+            Notes = booking.Notes,
+            StatusId = booking.StatusId,
+            AssignedEmployeeId = detail.BookingDetailEmployees.FirstOrDefault()?.EmployeeId,
+            HasPayment = (booking.Invoice?.PaidAmount ?? 0) > 0,
+            CustomerMode = "Existing"
+        };
+
+        await LoadBookingEditorListsAsync(model);
+        return View("BookingForm", model);
+    }
 
     [HttpPost]
-    public IActionResult SaveBooking() => DemoRedirect(nameof(Bookings), "Lịch hẹn đã được lưu trong bản trình diễn.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveBooking(AdminBookingEditorViewModel model)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        if (model.BookingId.HasValue)
+        {
+            model.CustomerMode = "Existing";
+        }
+
+        var isGuestBooking = !model.BookingId.HasValue
+                             && string.Equals(model.CustomerMode, "Guest", StringComparison.OrdinalIgnoreCase);
+
+        if (model.BookingDate <= DateTime.Now)
+        {
+            ModelState.AddModelError(nameof(model.BookingDate), "Thời gian hẹn phải ở tương lai.");
+        }
+
+        if (isGuestBooking)
+        {
+            model.GuestFullName = model.GuestFullName?.Trim();
+            model.GuestPhoneNumber = model.GuestPhoneNumber?.Trim();
+            model.GuestEmail = string.IsNullOrWhiteSpace(model.GuestEmail) ? null : model.GuestEmail.Trim();
+            model.GuestPetName = model.GuestPetName?.Trim();
+
+            if (string.IsNullOrWhiteSpace(model.GuestFullName))
+            {
+                ModelState.AddModelError(nameof(model.GuestFullName), "Vui lòng nhập tên khách vãng lai.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.GuestPhoneNumber))
+            {
+                ModelState.AddModelError(nameof(model.GuestPhoneNumber), "Vui lòng nhập số điện thoại khách vãng lai.");
+            }
+            else if (await _context.Customers.AnyAsync(customer => customer.PhoneNumber == model.GuestPhoneNumber))
+            {
+                ModelState.AddModelError(nameof(model.GuestPhoneNumber), "Số điện thoại đã có hồ sơ. Vui lòng chọn khách hàng có sẵn.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.GuestEmail)
+                && await _context.Customers.AnyAsync(customer => customer.Email == model.GuestEmail))
+            {
+                ModelState.AddModelError(nameof(model.GuestEmail), "Email đã có hồ sơ khách hàng trong hệ thống.");
+            }
+
+            if (string.IsNullOrWhiteSpace(model.GuestPetName))
+            {
+                ModelState.AddModelError(nameof(model.GuestPetName), "Vui lòng nhập tên thú cưng.");
+            }
+
+            var breedMatchesSpecies = await _context.PetBreeds.AnyAsync(breed =>
+                breed.BreedId == model.GuestBreedId && breed.SpeciesId == model.GuestSpeciesId);
+            if (!breedMatchesSpecies)
+            {
+                ModelState.AddModelError(nameof(model.GuestBreedId), "Vui lòng chọn giống thú cưng phù hợp.");
+            }
+        }
+        else
+        {
+            var customer = await _context.Customers
+                .FirstOrDefaultAsync(item => item.CustomerId == model.CustomerId && item.IsDeleted != true);
+            var pet = await _context.Pets
+                .FirstOrDefaultAsync(item => item.PetId == model.PetId
+                                             && item.CustomerId == model.CustomerId
+                                             && item.IsDeleted != true);
+
+            if (customer == null)
+            {
+                ModelState.AddModelError(nameof(model.CustomerId), "Khách hàng không tồn tại.");
+            }
+
+            if (pet == null)
+            {
+                ModelState.AddModelError(nameof(model.PetId), "Thú cưng không thuộc khách hàng đã chọn.");
+            }
+        }
+
+        var service = await _context.ServiceCatalogs
+            .FirstOrDefaultAsync(item => item.ServiceId == model.ServiceId
+                && ((item.IsActive == true && item.IsDeleted != true) ||
+                    (model.BookingId.HasValue &&
+                     item.BookingDetails.Any(detail => detail.BookingId == model.BookingId.Value))));
+
+        if (service == null)
+        {
+            ModelState.AddModelError(nameof(model.ServiceId), "Dịch vụ không khả dụng.");
+        }
+
+        var employeeIsAvailable = !model.AssignedEmployeeId.HasValue ||
+            await _context.Employees.AnyAsync(employee =>
+                employee.EmployeeId == model.AssignedEmployeeId.Value &&
+                employee.RoleId != AdminRoleId &&
+                employee.IsActive == true &&
+                employee.IsDeleted != true);
+        if (!employeeIsAvailable)
+        {
+            ModelState.AddModelError(nameof(model.AssignedEmployeeId), "Nhân viên phụ trách không khả dụng.");
+        }
+
+        var requiresAssignment = (!model.BookingId.HasValue && model.StatusId == BookingStatusConfirmed) ||
+                                 (model.BookingId.HasValue &&
+                                  (model.StatusId == BookingStatusConfirmed || model.StatusId == BookingStatusExpired));
+        if (requiresAssignment && !model.AssignedEmployeeId.HasValue)
+        {
+            ModelState.AddModelError(nameof(model.AssignedEmployeeId), "Lịch đã xác nhận phải có nhân viên phụ trách.");
+        }
+
+        if (service != null)
+        {
+            var availabilityValidation = await _bookingBusiness.ValidateAvailabilityAsync(
+                model.BookingDate,
+                model.ServiceId,
+                model.AssignedEmployeeId,
+                model.BookingId);
+            if (!availabilityValidation.Succeeded)
+            {
+                ModelState.AddModelError(nameof(model.BookingDate), availabilityValidation.ErrorMessage!);
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            await LoadBookingEditorListsAsync(model);
+            return View("BookingForm", model);
+        }
+
+        return model.BookingId.HasValue
+            ? await UpdateBookingAsync(model, service!)
+            : await AddBookingAsync(model, service!, isGuestBooking);
+    }
 
     [HttpPost]
     public IActionResult UpdateBookingStatus() => DemoRedirect(nameof(Bookings), "Trạng thái lịch và phân công đã được mô phỏng.");
@@ -1164,6 +1370,237 @@ public class AdminController : Controller
             Species = store.Species,
             Breeds = store.Breeds
         };
+    }
+
+    private async Task<IActionResult> AddBookingAsync(
+        AdminBookingEditorViewModel model,
+        ServiceCatalog service,
+        bool isGuestBooking)
+    {
+        var allowedStatuses = new[] { BookingStatusPending, BookingStatusConfirmed };
+        var statusId = allowedStatuses.Contains(model.StatusId) ? model.StatusId : BookingStatusPending;
+        var now = DateTime.Now;
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var customerId = model.CustomerId;
+            var petId = model.PetId;
+
+            if (isGuestBooking)
+            {
+                var guestCustomer = new Customer
+                {
+                    AccountId = null,
+                    FullName = model.GuestFullName!,
+                    PhoneNumber = model.GuestPhoneNumber!,
+                    Email = model.GuestEmail,
+                    CreatedAt = now,
+                    IsDeleted = false
+                };
+                _context.Customers.Add(guestCustomer);
+                await _context.SaveChangesAsync();
+
+                var guestPet = new Pet
+                {
+                    CustomerId = guestCustomer.CustomerId,
+                    Name = model.GuestPetName!,
+                    SpeciesId = model.GuestSpeciesId,
+                    BreedId = model.GuestBreedId,
+                    Weight = model.GuestPetWeight,
+                    Notes = string.IsNullOrWhiteSpace(model.GuestPetNotes) ? null : model.GuestPetNotes.Trim(),
+                    CreatedAt = now,
+                    IsDeleted = false
+                };
+                _context.Pets.Add(guestPet);
+                await _context.SaveChangesAsync();
+
+                customerId = guestCustomer.CustomerId;
+                petId = guestPet.PetId;
+            }
+
+            var booking = new Booking
+            {
+                BookingCode = ReferenceCodeHelper.Create("BK"),
+                CustomerId = customerId,
+                BookingDate = model.BookingDate,
+                Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim(),
+                StatusId = statusId,
+                CreatedAt = now,
+                IsDeleted = false
+            };
+            _context.Bookings.Add(booking);
+            await _context.SaveChangesAsync();
+
+            var bookingDetail = new BookingDetail
+            {
+                BookingId = booking.BookingId,
+                PetId = petId,
+                ServiceId = model.ServiceId,
+                ActualPrice = service.BasePrice,
+                StatusId = DetailStatusNotStarted
+            };
+            _context.BookingDetails.Add(bookingDetail);
+            await _context.SaveChangesAsync();
+
+            if (model.AssignedEmployeeId.HasValue)
+            {
+                _context.BookingDetailEmployees.Add(new BookingDetailEmployee
+                {
+                    BookingDetailId = bookingDetail.BookingDetailId,
+                    EmployeeId = model.AssignedEmployeeId.Value,
+                    AssignedAt = now
+                });
+            }
+
+            _context.Invoices.Add(new Invoice
+            {
+                InvoiceCode = ReferenceCodeHelper.Create("INV"),
+                BookingId = booking.BookingId,
+                TotalAmount = _invoiceBusiness.CalculateTotalAmount(service.BasePrice),
+                DiscountAmount = 0,
+                PaidAmount = 0,
+                StatusId = (int)InvoiceStatusCode.Unpaid,
+                CreatedAt = now
+            });
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+            TempData["AdminSuccess"] = isGuestBooking
+                ? "Đã tạo hồ sơ khách vãng lai, lịch hẹn và hóa đơn chưa thanh toán."
+                : "Đã thêm lịch hẹn mới và tạo hóa đơn chưa thanh toán.";
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            TempData["AdminError"] = "Không thể thêm lịch hẹn. Vui lòng kiểm tra dữ liệu và thử lại.";
+        }
+
+        return RedirectToAction(nameof(Bookings));
+    }
+
+    private async Task<IActionResult> UpdateBookingAsync(AdminBookingEditorViewModel model, ServiceCatalog service)
+    {
+        var booking = await _context.Bookings
+            .Include(item => item.Invoice)
+                .ThenInclude(invoice => invoice!.Promotion)
+            .Include(item => item.BookingDetails)
+                .ThenInclude(detail => detail.BookingDetailEmployees)
+            .FirstOrDefaultAsync(item => item.BookingId == model.BookingId && item.IsDeleted != true);
+
+        if (booking == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy lịch hẹn cần sửa.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        if (booking.StatusId == BookingStatusCompleted ||
+            booking.StatusId == BookingStatusCancelled ||
+            booking.StatusId == BookingStatusInProgress)
+        {
+            TempData["AdminError"] = "Lịch đã bắt đầu thực hiện, đã hoàn thành hoặc đã hủy không thể sửa thông tin.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var detail = booking.BookingDetails.FirstOrDefault();
+        if (detail == null)
+        {
+            TempData["AdminError"] = "Lịch hẹn không có chi tiết dịch vụ để sửa.";
+            return RedirectToAction(nameof(Bookings));
+        }
+
+        var hasPayment = (booking.Invoice?.PaidAmount ?? 0) > 0;
+        if (hasPayment && (detail.ServiceId != model.ServiceId || detail.PetId != model.PetId))
+        {
+            model.HasPayment = true;
+            ModelState.AddModelError(nameof(model.ServiceId), "Hóa đơn đã có thanh toán nên không thể đổi dịch vụ hoặc thú cưng.");
+            await LoadBookingEditorListsAsync(model);
+            return View("BookingForm", model);
+        }
+
+        var now = DateTime.Now;
+        booking.CustomerId = model.CustomerId;
+        booking.BookingDate = model.BookingDate;
+        booking.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
+        booking.ModifiedAt = now;
+
+        if (booking.StatusId == BookingStatusExpired)
+        {
+            booking.StatusId = BookingStatusConfirmed;
+        }
+
+        if (!hasPayment)
+        {
+            detail.PetId = model.PetId;
+            detail.ServiceId = model.ServiceId;
+            detail.ActualPrice = service.BasePrice;
+            detail.ModifiedAt = now;
+        }
+
+        var keepsCurrentAssignment = detail.BookingDetailEmployees.Count == 1 &&
+                                     detail.BookingDetailEmployees.First().EmployeeId == model.AssignedEmployeeId;
+        if (!keepsCurrentAssignment)
+        {
+            _context.BookingDetailEmployees.RemoveRange(detail.BookingDetailEmployees);
+            if (model.AssignedEmployeeId.HasValue)
+            {
+                _context.BookingDetailEmployees.Add(new BookingDetailEmployee
+                {
+                    BookingDetailId = detail.BookingDetailId,
+                    EmployeeId = model.AssignedEmployeeId.Value,
+                    AssignedAt = now
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync();
+
+        if (booking.Invoice != null && !hasPayment)
+        {
+            booking.Invoice.TotalAmount = _invoiceBusiness.CalculateTotalAmount(service.BasePrice);
+            booking.Invoice.DiscountAmount = _invoiceBusiness.CalculateDiscountAmount(
+                booking.Invoice.TotalAmount.Value,
+                booking.Invoice.Promotion,
+                booking.Invoice.CreatedAt ?? now);
+            booking.Invoice.ModifiedAt = now;
+            _context.Entry(booking.Invoice).Property(invoice => invoice.TotalAmount).IsModified = true;
+            await _context.SaveChangesAsync();
+        }
+
+        TempData["AdminSuccess"] = "Đã cập nhật thông tin lịch hẹn.";
+        return RedirectToAction(nameof(Bookings));
+    }
+
+    private async Task LoadBookingEditorListsAsync(AdminBookingEditorViewModel model)
+    {
+        model.Customers = await _context.Customers
+            .Where(customer => customer.IsDeleted != true)
+            .OrderBy(customer => customer.FullName)
+            .ToListAsync();
+        model.Pets = await _context.Pets
+            .Where(pet => pet.IsDeleted != true)
+            .OrderBy(pet => pet.Name)
+            .ToListAsync();
+        model.Services = await _context.ServiceCatalogs
+            .Where(service =>
+                (service.IsActive == true && service.IsDeleted != true) ||
+                (model.BookingId.HasValue && service.ServiceId == model.ServiceId))
+            .OrderBy(service => service.ServiceName)
+            .ToListAsync();
+        model.Employees = await _context.Employees
+            .Include(employee => employee.Role)
+            .Where(employee =>
+                employee.RoleId != AdminRoleId &&
+                employee.IsActive == true &&
+                employee.IsDeleted != true)
+            .OrderBy(employee => employee.FullName)
+            .ToListAsync();
+        model.Species = await _context.PetSpecies
+            .OrderBy(species => species.SpeciesName)
+            .ToListAsync();
+        model.Breeds = await _context.PetBreeds
+            .OrderBy(breed => breed.BreedName)
+            .ToListAsync();
     }
 
     private IActionResult DemoRedirect(string action, string message, object? values = null)
