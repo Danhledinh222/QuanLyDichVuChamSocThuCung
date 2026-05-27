@@ -11,8 +11,10 @@ namespace PetcareWebsite.Controllers;
 
 public class AdminController : Controller
 {
+    private const int AdminRoleId = (int)SystemRoleCode.Admin;
     private const int BookingStatusPending = (int)BookingStatusCode.Pending;
     private const int BookingStatusConfirmed = (int)BookingStatusCode.Confirmed;
+    private const int BookingStatusCompleted = (int)BookingStatusCode.Completed;
     private const int BookingStatusInProgress = (int)BookingStatusCode.InProgress;
     private const int BookingStatusCancelled = (int)BookingStatusCode.Cancelled;
     private const int BookingStatusExpired = (int)BookingStatusCode.Expired;
@@ -65,28 +67,66 @@ public class AdminController : Controller
         return View(model);
     }
 
-    public IActionResult Bookings(string? search, int? statusId)
+    [HttpGet]
+    public async Task<IActionResult> Bookings(string? search, int? statusId)
     {
-        var all = store.Bookings.OrderByDescending(booking => booking.BookingDate).ToList();
-        var filtered = all.Where(booking =>
-                (string.IsNullOrWhiteSpace(search) ||
-                 booking.BookingCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                 booking.Customer.FullName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                 booking.Customer.PhoneNumber.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
-                (!statusId.HasValue || booking.StatusId == statusId))
-            .ToList();
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        await _bookingBusiness.MarkExpiredBookingsAsync();
+
+        var allBookings = _context.Bookings
+            .Where(booking => booking.IsDeleted != true);
+        var query = _context.Bookings
+            .Include(booking => booking.Customer)
+            .Include(booking => booking.Status)
+            .Include(booking => booking.Invoice)
+            .Include(booking => booking.BookingDetails)
+                .ThenInclude(detail => detail.Pet)
+            .Include(booking => booking.BookingDetails)
+                .ThenInclude(detail => detail.Service)
+            .Include(booking => booking.BookingDetails)
+                .ThenInclude(detail => detail.BookingDetailEmployees)
+                .ThenInclude(assignment => assignment.Employee)
+                .ThenInclude(employee => employee.Role)
+            .Where(booking => booking.IsDeleted != true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(booking =>
+                booking.BookingCode.Contains(keyword) ||
+                booking.Customer.FullName.Contains(keyword) ||
+                booking.Customer.PhoneNumber.Contains(keyword));
+        }
+
+        if (statusId.HasValue)
+        {
+            query = query.Where(booking => booking.StatusId == statusId.Value);
+        }
+
         return View(new AdminBookingsViewModel
         {
             Search = search,
             StatusId = statusId,
-            TotalCount = all.Count,
-            PendingCount = all.Count(booking => booking.StatusId == 1),
-            CompletedCount = all.Count(booking => booking.StatusId == 3),
-            CancelledCount = all.Count(booking => booking.StatusId == 4),
-            ExpiredCount = all.Count(booking => booking.StatusId == 5),
-            InProgressCount = all.Count(booking => booking.StatusId == 6),
-            Bookings = filtered,
-            Employees = store.Employees.Where(employee => employee.IsActive == true).ToList()
+            TotalCount = await allBookings.CountAsync(),
+            PendingCount = await allBookings.CountAsync(booking => booking.StatusId == BookingStatusPending),
+            CompletedCount = await allBookings.CountAsync(booking => booking.StatusId == BookingStatusCompleted),
+            CancelledCount = await allBookings.CountAsync(booking => booking.StatusId == BookingStatusCancelled),
+            ExpiredCount = await allBookings.CountAsync(booking => booking.StatusId == BookingStatusExpired),
+            InProgressCount = await allBookings.CountAsync(booking => booking.StatusId == BookingStatusInProgress),
+            Bookings = await query.OrderByDescending(booking => booking.BookingDate).ToListAsync(),
+            Employees = await _context.Employees
+                .Include(employee => employee.Role)
+                .Where(employee =>
+                    employee.RoleId != AdminRoleId &&
+                    employee.IsActive == true &&
+                    employee.IsDeleted != true)
+                .OrderBy(employee => employee.FullName)
+                .ToListAsync()
         });
     }
 
