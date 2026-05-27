@@ -4,6 +4,7 @@ using PetcareWebsite.Data;
 using PetcareWebsite.Enums;
 using PetcareWebsite.Extensions;
 using PetcareWebsite.Models;
+using PetcareWebsite.Services;
 using PetcareWebsite.ViewModels;
 
 namespace PetcareWebsite.Controllers;
@@ -13,14 +14,24 @@ public class AdminController : Controller
     private const int BookingStatusPending = (int)BookingStatusCode.Pending;
     private const int BookingStatusConfirmed = (int)BookingStatusCode.Confirmed;
     private const int BookingStatusInProgress = (int)BookingStatusCode.InProgress;
+    private const int BookingStatusCancelled = (int)BookingStatusCode.Cancelled;
+    private const int BookingStatusExpired = (int)BookingStatusCode.Expired;
 
     private readonly DemoStore store;
     private readonly PetCareDbContext _context;
+    private readonly IBookingBusinessService _bookingBusiness;
+    private readonly IInvoiceBusinessService _invoiceBusiness;
 
-    public AdminController(DemoStore store, PetCareDbContext context)
+    public AdminController(
+        DemoStore store,
+        PetCareDbContext context,
+        IBookingBusinessService bookingBusiness,
+        IInvoiceBusinessService invoiceBusiness)
     {
         this.store = store;
         _context = context;
+        _bookingBusiness = bookingBusiness;
+        _invoiceBusiness = invoiceBusiness;
     }
 
     public IActionResult Index()
@@ -79,29 +90,86 @@ public class AdminController : Controller
         });
     }
 
-    public IActionResult Invoices(string? search, int? statusId)
+    [HttpGet]
+    public async Task<IActionResult> Invoices(string? search, int? statusId)
     {
-        var all = store.Invoices.OrderByDescending(invoice => invoice.CreatedAt).ToList();
-        var filtered = all.Where(invoice =>
-                (string.IsNullOrWhiteSpace(search) ||
-                 invoice.InvoiceCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                 invoice.Booking.BookingCode.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                 invoice.Booking.Customer.FullName.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
-                (!statusId.HasValue || invoice.StatusId == statusId))
-            .ToList();
-        return View(new AdminInvoicesViewModel
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        await _bookingBusiness.MarkExpiredBookingsAsync();
+        var now = DateTime.Now;
+
+        var allInvoices = _context.Invoices
+            .Where(invoice => invoice.Booking.IsDeleted != true);
+        var receivableInvoices = allInvoices
+            .Where(invoice =>
+                invoice.Booking.StatusId != BookingStatusCancelled &&
+                invoice.Booking.StatusId != BookingStatusExpired);
+        var query = _context.Invoices
+            .Include(invoice => invoice.Status)
+            .Include(invoice => invoice.Promotion)
+            .Include(invoice => invoice.Payments)
+                .ThenInclude(payment => payment.Method)
+            .Include(invoice => invoice.Booking)
+                .ThenInclude(booking => booking.Customer)
+            .Include(invoice => invoice.Booking)
+                .ThenInclude(booking => booking.Status)
+            .Include(invoice => invoice.Booking)
+                .ThenInclude(booking => booking.BookingDetails)
+                .ThenInclude(detail => detail.Service)
+            .Where(invoice => invoice.Booking.IsDeleted != true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(invoice =>
+                invoice.InvoiceCode.Contains(keyword) ||
+                invoice.Booking.BookingCode.Contains(keyword) ||
+                invoice.Booking.Customer.FullName.Contains(keyword) ||
+                invoice.Booking.Customer.PhoneNumber.Contains(keyword));
+        }
+
+        if (statusId.HasValue)
+        {
+            query = query.Where(invoice => invoice.StatusId == statusId.Value);
+            if (statusId.Value == (int)InvoiceStatusCode.Unpaid ||
+                statusId.Value == (int)InvoiceStatusCode.Partial)
+            {
+                query = query.Where(invoice =>
+                    invoice.Booking.StatusId != BookingStatusCancelled &&
+                    invoice.Booking.StatusId != BookingStatusExpired);
+            }
+        }
+
+        var model = new AdminInvoicesViewModel
         {
             Search = search,
             StatusId = statusId,
-            TotalCount = all.Count,
-            UnpaidCount = all.Count(invoice => invoice.StatusId == 1),
-            PartialCount = all.Count(invoice => invoice.StatusId == 2),
-            PaidCount = all.Count(invoice => invoice.StatusId == 3),
-            OutstandingAmount = all.Where(invoice => invoice.Booking.StatusId is not 4 and not 5).Sum(invoice => (invoice.TotalAmount ?? 0) - (invoice.DiscountAmount ?? 0) - (invoice.PaidAmount ?? 0)),
-            Invoices = filtered,
-            PaymentMethods = store.PaymentMethods,
-            Promotions = store.Promotions.Where(promotion => promotion.IsActive == true).ToList()
-        });
+            TotalCount = await allInvoices.CountAsync(),
+            UnpaidCount = await receivableInvoices.CountAsync(invoice => invoice.StatusId == (int)InvoiceStatusCode.Unpaid),
+            PartialCount = await receivableInvoices.CountAsync(invoice => invoice.StatusId == (int)InvoiceStatusCode.Partial),
+            PaidCount = await allInvoices.CountAsync(invoice => invoice.StatusId == (int)InvoiceStatusCode.Paid),
+            OutstandingAmount = await receivableInvoices.SumAsync(invoice =>
+                (decimal?)((invoice.TotalAmount ?? 0) - (invoice.DiscountAmount ?? 0) - (invoice.PaidAmount ?? 0))) ?? 0,
+            Invoices = await query
+                .OrderByDescending(invoice => invoice.CreatedAt)
+                .ToListAsync(),
+            PaymentMethods = await _context.PaymentMethods
+                .OrderBy(method => method.MethodId)
+                .ToListAsync(),
+            Promotions = await _context.Promotions
+                .Where(promotion =>
+                    promotion.IsActive == true &&
+                    promotion.StartDate <= now &&
+                    promotion.EndDate >= now)
+                .OrderBy(promotion => promotion.PromoCode)
+                .ToListAsync()
+        };
+
+        return View(model);
     }
 
     [HttpGet]
@@ -685,19 +753,128 @@ public class AdminController : Controller
         return RedirectToAction(nameof(Promotions));
     }
 
-    public IActionResult Reviews(string? search, int? rating, string? status)
+    [HttpGet]
+    public async Task<IActionResult> Reviews(string? search, int? rating, string? status)
     {
-        var all = store.Reviews;
-        var filtered = all.Where(review =>
-                (string.IsNullOrWhiteSpace(search) || (review.Content?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) || review.Customer.FullName.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
-                (!rating.HasValue || review.Rating == rating) &&
-                (string.IsNullOrWhiteSpace(status) || ReviewState(review) == status))
-            .ToList();
-        return View(new AdminReviewsViewModel { Search = search, Rating = rating, Status = status, TotalCount = all.Count, VisibleCount = all.Count(review => review.IsVisible == true), HiddenCount = all.Count(review => review.IsVisible != true), AwaitingReplyCount = all.Count(review => string.IsNullOrWhiteSpace(review.StoreReply)), RepliedCount = all.Count(review => !string.IsNullOrWhiteSpace(review.StoreReply)), AverageRating = all.Any() ? (decimal)all.Average(review => review.Rating) : 0, Reviews = filtered });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var allReviews = _context.ServiceReviews.AsQueryable();
+        var query = _context.ServiceReviews
+            .Include(review => review.Customer)
+            .Include(review => review.BookingDetail)
+                .ThenInclude(detail => detail.Booking)
+            .Include(review => review.BookingDetail)
+                .ThenInclude(detail => detail.Pet)
+            .Include(review => review.BookingDetail)
+                .ThenInclude(detail => detail.Service)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(review =>
+                review.Customer.FullName.Contains(keyword) ||
+                review.Customer.PhoneNumber.Contains(keyword) ||
+                review.BookingDetail.Service.ServiceName.Contains(keyword) ||
+                (review.Content != null && review.Content.Contains(keyword)));
+        }
+
+        if (rating.HasValue && rating.Value >= 1 && rating.Value <= 5)
+        {
+            query = query.Where(review => review.Rating == rating.Value);
+        }
+        else
+        {
+            rating = null;
+        }
+
+        if (string.Equals(status, "Visible", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(review => review.IsVisible == true || review.IsVisible == null);
+        }
+        else if (string.Equals(status, "Hidden", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(review => review.IsVisible == false);
+        }
+        else if (string.Equals(status, "AwaitingReply", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(review => review.StoreReply == null || review.StoreReply == string.Empty);
+        }
+        else if (string.Equals(status, "Replied", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(review => review.StoreReply != null && review.StoreReply != string.Empty);
+        }
+        else
+        {
+            status = null;
+        }
+
+        var reviewCount = await allReviews.CountAsync();
+        var model = new AdminReviewsViewModel
+        {
+            Search = search,
+            Rating = rating,
+            Status = status,
+            TotalCount = reviewCount,
+            VisibleCount = await allReviews.CountAsync(review => review.IsVisible == true || review.IsVisible == null),
+            HiddenCount = await allReviews.CountAsync(review => review.IsVisible == false),
+            AwaitingReplyCount = await allReviews.CountAsync(review =>
+                review.StoreReply == null || review.StoreReply == string.Empty),
+            RepliedCount = await allReviews.CountAsync(review =>
+                review.StoreReply != null && review.StoreReply != string.Empty),
+            AverageRating = reviewCount == 0
+                ? 0
+                : Math.Round(await allReviews.AverageAsync(review => (decimal)review.Rating), 1),
+            Reviews = await query
+                .OrderByDescending(review => review.CreatedAt)
+                .ThenByDescending(review => review.ReviewId)
+                .ToListAsync()
+        };
+
+        return View(model);
     }
 
     [HttpPost]
-    public IActionResult UpdateReviewModeration() => DemoRedirect(nameof(Reviews), "Phản hồi đánh giá đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateReviewModeration(
+        int reviewId,
+        bool isVisible,
+        string? storeReply,
+        string? search,
+        int? rating,
+        string? status)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var review = await _context.ServiceReviews.FindAsync(reviewId);
+        if (review == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy đánh giá cần cập nhật.";
+            return RedirectToAction(nameof(Reviews), new { search, rating, status });
+        }
+
+        var reply = string.IsNullOrWhiteSpace(storeReply) ? null : storeReply.Trim();
+        if (reply?.Length > 1000)
+        {
+            TempData["AdminError"] = "Phản hồi cửa hàng không được vượt quá 1000 ký tự.";
+            return RedirectToAction(nameof(Reviews), new { search, rating, status });
+        }
+
+        review.IsVisible = isVisible;
+        review.StoreReply = reply;
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = "Đã cập nhật xử lý đánh giá.";
+        return RedirectToAction(nameof(Reviews), new { search, rating, status });
+    }
 
     public IActionResult Customers(string? search, string? customerType)
     {
@@ -754,10 +931,135 @@ public class AdminController : Controller
     public IActionResult UpdateBookingStatus() => DemoRedirect(nameof(Bookings), "Trạng thái lịch và phân công đã được mô phỏng.");
 
     [HttpPost]
-    public IActionResult ApplyInvoicePromotion() => DemoRedirect(nameof(Invoices), "Khuyến mãi hóa đơn đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApplyInvoicePromotion(int invoiceId, int? promotionId)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var invoice = await _context.Invoices
+            .Include(item => item.Booking)
+            .FirstOrDefaultAsync(item => item.InvoiceId == invoiceId && item.Booking.IsDeleted != true);
+
+        if (invoice == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy hóa đơn cần áp dụng khuyến mãi.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        if ((invoice.PaidAmount ?? 0) > 0)
+        {
+            TempData["AdminError"] = "Hóa đơn đã ghi nhận thanh toán nên không thể thay đổi khuyến mãi.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        if (invoice.Booking.StatusId == BookingStatusCancelled || invoice.Booking.StatusId == BookingStatusExpired)
+        {
+            TempData["AdminError"] = "Lịch đã hủy hoặc hết hạn không thể áp dụng khuyến mãi.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        if (!promotionId.HasValue)
+        {
+            _invoiceBusiness.ApplyPromotion(invoice, null, invoice.CreatedAt ?? DateTime.Now);
+            await _context.SaveChangesAsync();
+            TempData["AdminSuccess"] = "Đã bỏ mã khuyến mãi khỏi hóa đơn.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        var now = DateTime.Now;
+        var referenceDate = invoice.CreatedAt ?? now;
+        var promotion = await _context.Promotions.FirstOrDefaultAsync(item =>
+            item.PromotionId == promotionId.Value &&
+            item.IsActive == true &&
+            item.StartDate <= now &&
+            item.EndDate >= now);
+
+        if (promotion == null)
+        {
+            TempData["AdminError"] = "Mã khuyến mãi không còn hiệu lực.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        if (referenceDate < promotion.StartDate || referenceDate > promotion.EndDate)
+        {
+            TempData["AdminError"] = "Hóa đơn được tạo ngoài thời gian áp dụng của mã khuyến mãi.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        if ((invoice.TotalAmount ?? 0) < (promotion.MinOrderValue ?? 0))
+        {
+            TempData["AdminError"] = "Hóa đơn chưa đạt giá trị tối thiểu của mã khuyến mãi.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        _invoiceBusiness.ApplyPromotion(invoice, promotion, referenceDate);
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = $"Đã áp mã {promotion.PromoCode}; hóa đơn được giảm {(invoice.DiscountAmount ?? 0):N0} đ.";
+        return RedirectToAction(nameof(Invoices));
+    }
 
     [HttpPost]
-    public IActionResult RecordInvoicePayment() => DemoRedirect(nameof(Invoices), "Thanh toán hóa đơn đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RecordInvoicePayment(int invoiceId, decimal amount, int methodId, string? note)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var invoice = await _context.Invoices
+            .Include(item => item.Booking)
+            .FirstOrDefaultAsync(item => item.InvoiceId == invoiceId && item.Booking.IsDeleted != true);
+
+        if (invoice == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy hóa đơn cần cập nhật.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        if (invoice.Booking.StatusId == BookingStatusCancelled || invoice.Booking.StatusId == BookingStatusExpired)
+        {
+            TempData["AdminError"] = "Lịch đã hủy hoặc đã hết hạn không thể ghi nhận thanh toán mới.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        var remainingAmount = (invoice.TotalAmount ?? 0)
+                              - (invoice.DiscountAmount ?? 0)
+                              - (invoice.PaidAmount ?? 0);
+
+        if (amount <= 0 || amount > remainingAmount)
+        {
+            TempData["AdminError"] = "Số tiền thu phải lớn hơn 0 và không vượt quá số tiền còn thiếu.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        if (!await _context.PaymentMethods.AnyAsync(method => method.MethodId == methodId))
+        {
+            TempData["AdminError"] = "Phương thức thanh toán không hợp lệ.";
+            return RedirectToAction(nameof(Invoices));
+        }
+
+        try
+        {
+            var paymentNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"EXEC dbo.sp_ProcessPayment @InvoiceID={invoice.InvoiceId}, @Amount={amount}, @MethodID={methodId}, @Note={paymentNote}");
+
+            TempData["AdminSuccess"] = "Đã ghi nhận thanh toán cho lịch hẹn.";
+        }
+        catch
+        {
+            TempData["AdminError"] = "Không thể ghi nhận thanh toán. Vui lòng kiểm tra số tiền và thử lại.";
+        }
+
+        return RedirectToAction(nameof(Invoices));
+    }
 
     public IActionResult Contacts(string? search, string? status)
     {
