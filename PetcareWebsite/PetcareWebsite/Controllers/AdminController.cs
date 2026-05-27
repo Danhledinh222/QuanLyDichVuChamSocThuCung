@@ -1013,19 +1013,199 @@ public class AdminController : Controller
         });
     }
 
-    public IActionResult CreateCustomer() => View("CustomerForm", new AdminCustomerEditorViewModel());
-
-    public IActionResult EditCustomer(int id)
+    [HttpGet]
+    public IActionResult CreateCustomer()
     {
-        var customer = store.Customers.First(item => item.CustomerId == id);
-        return View("CustomerForm", new AdminCustomerEditorViewModel { CustomerId = customer.CustomerId, AccountId = customer.AccountId, FullName = customer.FullName, PhoneNumber = customer.PhoneNumber, Email = customer.Email, Address = customer.Address });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        return View("CustomerForm", new AdminCustomerEditorViewModel());
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EditCustomer(int id)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var customer = await _context.Customers
+            .FirstOrDefaultAsync(item => item.CustomerId == id && item.IsDeleted != true);
+
+        if (customer == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy hồ sơ khách hàng cần sửa.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        return View("CustomerForm", new AdminCustomerEditorViewModel
+        {
+            CustomerId = customer.CustomerId,
+            AccountId = customer.AccountId,
+            FullName = customer.FullName,
+            PhoneNumber = customer.PhoneNumber,
+            Email = customer.Email,
+            Address = customer.Address
+        });
     }
 
     [HttpPost]
-    public IActionResult SaveCustomer() => DemoRedirect(nameof(Customers), "Hồ sơ khách hàng đã được lưu trong bản trình diễn.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveCustomer(AdminCustomerEditorViewModel model)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        Customer? customer = null;
+        if (model.CustomerId.HasValue)
+        {
+            customer = await _context.Customers
+                .Include(item => item.Account)
+                .FirstOrDefaultAsync(item =>
+                    item.CustomerId == model.CustomerId.Value && item.IsDeleted != true);
+
+            if (customer == null)
+            {
+                TempData["AdminError"] = "Không tìm thấy hồ sơ khách hàng cần sửa.";
+                return RedirectToAction(nameof(Customers));
+            }
+
+            model.AccountId = customer.AccountId;
+        }
+
+        model.FullName = model.FullName?.Trim() ?? string.Empty;
+        model.PhoneNumber = model.PhoneNumber?.Trim() ?? string.Empty;
+        model.Email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
+        model.Address = string.IsNullOrWhiteSpace(model.Address) ? null : model.Address.Trim();
+
+        if (string.IsNullOrWhiteSpace(model.FullName))
+        {
+            ModelState.AddModelError(nameof(model.FullName), "Vui lòng nhập họ tên khách hàng.");
+        }
+
+        if (string.IsNullOrWhiteSpace(model.PhoneNumber))
+        {
+            ModelState.AddModelError(nameof(model.PhoneNumber), "Vui lòng nhập số điện thoại.");
+        }
+
+        var existingId = model.CustomerId ?? 0;
+        if (!string.IsNullOrWhiteSpace(model.PhoneNumber) &&
+            await _context.Customers.AnyAsync(item =>
+                item.PhoneNumber == model.PhoneNumber && item.CustomerId != existingId))
+        {
+            ModelState.AddModelError(nameof(model.PhoneNumber), "Số điện thoại đã thuộc về một hồ sơ khách hàng khác.");
+        }
+
+        if (model.Email != null &&
+            await _context.Customers.AnyAsync(item =>
+                item.Email == model.Email && item.CustomerId != existingId))
+        {
+            ModelState.AddModelError(nameof(model.Email), "Email đã thuộc về một hồ sơ khách hàng khác.");
+        }
+
+        if (customer?.Account != null &&
+            customer.PhoneNumber != model.PhoneNumber &&
+            await _context.Accounts.AnyAsync(account =>
+                account.Username == model.PhoneNumber && account.AccountId != customer.AccountId))
+        {
+            ModelState.AddModelError(nameof(model.PhoneNumber), "Số điện thoại đang được dùng làm tài khoản đăng nhập khác.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return View("CustomerForm", model);
+        }
+
+        var now = DateTime.Now;
+        if (customer == null)
+        {
+            customer = new Customer
+            {
+                FullName = model.FullName,
+                PhoneNumber = model.PhoneNumber,
+                Email = model.Email,
+                Address = model.Address,
+                CreatedAt = now,
+                IsDeleted = false
+            };
+            _context.Customers.Add(customer);
+        }
+        else
+        {
+            if (customer.Account != null && customer.PhoneNumber != model.PhoneNumber)
+            {
+                customer.Account.Username = model.PhoneNumber;
+            }
+
+            customer.FullName = model.FullName;
+            customer.PhoneNumber = model.PhoneNumber;
+            customer.Email = model.Email;
+            customer.Address = model.Address;
+            customer.ModifiedAt = now;
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            ModelState.AddModelError(string.Empty, "Không thể lưu khách hàng. Vui lòng kiểm tra số điện thoại hoặc email.");
+            return View("CustomerForm", model);
+        }
+
+        TempData["AdminSuccess"] = model.IsEditing
+            ? "Đã cập nhật hồ sơ khách hàng."
+            : "Đã thêm hồ sơ khách vãng lai. Bạn có thể thêm thú cưng và tạo lịch hẹn cho khách này.";
+
+        return RedirectToAction(nameof(CustomerDetails), new { id = customer.CustomerId });
+    }
 
     [HttpPost]
-    public IActionResult ToggleCustomerAccountStatus() => DemoRedirect(nameof(Customers), "Trạng thái tài khoản đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleCustomerAccountStatus(int customerId)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var customer = await _context.Customers
+            .Include(item => item.Account)
+            .FirstOrDefaultAsync(item =>
+                item.CustomerId == customerId && item.IsDeleted != true);
+
+        if (customer == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy hồ sơ khách hàng.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        if (!customer.AccountId.HasValue || customer.Account == null)
+        {
+            TempData["AdminError"] = "Khách vãng lai không có tài khoản để khóa.";
+            return RedirectToAction(nameof(CustomerDetails), new { id = customerId });
+        }
+
+        var isActive = customer.Account.IsActive == true;
+        customer.Account.IsActive = !isActive;
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = isActive
+            ? "Đã khóa tài khoản thành viên. Khách hàng không thể đăng nhập hoặc tiếp tục dùng phiên hiện tại."
+            : "Đã mở khóa tài khoản thành viên. Khách hàng có thể đăng nhập lại.";
+
+        return RedirectToAction(nameof(CustomerDetails), new { id = customerId });
+    }
 
     public IActionResult CreatePet(int customerId) => View("PetForm", PetEditor(null, store.Customers.FirstOrDefault(customer => customer.CustomerId == customerId) ?? store.MemberCustomer));
 
