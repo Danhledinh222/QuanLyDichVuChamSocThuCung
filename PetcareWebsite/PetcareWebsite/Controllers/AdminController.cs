@@ -921,20 +921,96 @@ public class AdminController : Controller
         return RedirectToAction(nameof(Reviews), new { search, rating, status });
     }
 
-    public IActionResult Customers(string? search, string? customerType)
+    [HttpGet]
+    public async Task<IActionResult> Customers(string? search, string? customerType)
     {
-        var all = store.Customers;
-        var filtered = all.Where(customer =>
-                (string.IsNullOrWhiteSpace(search) || customer.FullName.Contains(search, StringComparison.OrdinalIgnoreCase) || customer.PhoneNumber.Contains(search)) &&
-                (string.IsNullOrWhiteSpace(customerType) || (customerType == "Member" ? customer.AccountId.HasValue : !customer.AccountId.HasValue)))
-            .ToList();
-        return View(new AdminCustomersViewModel { Search = search, CustomerType = customerType, TotalCount = all.Count, MemberCount = all.Count(customer => customer.AccountId.HasValue), GuestCount = all.Count(customer => !customer.AccountId.HasValue), PetCount = store.Pets.Count, Customers = filtered });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var allCustomers = _context.Customers
+            .Where(customer => customer.IsDeleted != true);
+        var query = _context.Customers
+            .Include(customer => customer.Account)
+            .Include(customer => customer.Pets)
+            .Include(customer => customer.Bookings)
+            .Where(customer => customer.IsDeleted != true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(customer =>
+                customer.FullName.Contains(keyword) ||
+                customer.PhoneNumber.Contains(keyword) ||
+                (customer.Email != null && customer.Email.Contains(keyword)));
+        }
+
+        if (customerType == "Member")
+        {
+            query = query.Where(customer => customer.AccountId != null);
+        }
+        else if (customerType == "Guest")
+        {
+            query = query.Where(customer => customer.AccountId == null);
+        }
+
+        return View(new AdminCustomersViewModel
+        {
+            Search = search,
+            CustomerType = customerType,
+            TotalCount = await allCustomers.CountAsync(),
+            MemberCount = await allCustomers.CountAsync(customer => customer.AccountId != null),
+            GuestCount = await allCustomers.CountAsync(customer => customer.AccountId == null),
+            PetCount = await _context.Pets.CountAsync(pet =>
+                pet.IsDeleted != true && pet.Customer.IsDeleted != true),
+            Customers = await query
+                .OrderBy(customer => customer.FullName)
+                .ToListAsync()
+        });
     }
 
-    public IActionResult CustomerDetails(int id)
+    [HttpGet]
+    public async Task<IActionResult> CustomerDetails(int id)
     {
-        var customer = store.Customers.FirstOrDefault(item => item.CustomerId == id) ?? store.MemberCustomer;
-        return View(new AdminCustomerDetailViewModel { Customer = customer, Bookings = customer.Bookings.OrderByDescending(booking => booking.BookingDate).ToList(), TotalPaid = customer.Bookings.Sum(booking => booking.Invoice?.PaidAmount ?? 0) });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        await _bookingBusiness.MarkExpiredBookingsAsync();
+
+        var customer = await _context.Customers
+            .Include(item => item.Account)
+            .Include(item => item.Pets)
+                .ThenInclude(pet => pet.Species)
+            .Include(item => item.Pets)
+                .ThenInclude(pet => pet.PetBreed)
+            .FirstOrDefaultAsync(item => item.CustomerId == id && item.IsDeleted != true);
+
+        if (customer == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy hồ sơ khách hàng.";
+            return RedirectToAction(nameof(Customers));
+        }
+
+        var bookings = await _context.Bookings
+            .Include(booking => booking.Status)
+            .Include(booking => booking.Invoice)
+            .Include(booking => booking.BookingDetails)
+                .ThenInclude(detail => detail.Service)
+            .Where(booking => booking.CustomerId == id && booking.IsDeleted != true)
+            .OrderByDescending(booking => booking.BookingDate)
+            .ToListAsync();
+
+        return View(new AdminCustomerDetailViewModel
+        {
+            Customer = customer,
+            Bookings = bookings,
+            TotalPaid = bookings.Sum(booking => booking.Invoice?.PaidAmount ?? 0)
+        });
     }
 
     public IActionResult CreateCustomer() => View("CustomerForm", new AdminCustomerEditorViewModel());
