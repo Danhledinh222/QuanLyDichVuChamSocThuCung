@@ -27,17 +27,20 @@ public class AdminController : Controller
     private readonly DemoStore store;
     private readonly PetCareDbContext _context;
     private readonly IBookingBusinessService _bookingBusiness;
+    private readonly IInventoryBusinessService _inventoryBusiness;
     private readonly IInvoiceBusinessService _invoiceBusiness;
 
     public AdminController(
-        DemoStore store,
-        PetCareDbContext context,
-        IBookingBusinessService bookingBusiness,
-        IInvoiceBusinessService invoiceBusiness)
+     DemoStore store,
+     PetCareDbContext context,
+     IBookingBusinessService bookingBusiness,
+     IInventoryBusinessService inventoryBusiness,
+     IInvoiceBusinessService invoiceBusiness)
     {
         this.store = store;
         _context = context;
         _bookingBusiness = bookingBusiness;
+        _inventoryBusiness = inventoryBusiness;
         _invoiceBusiness = invoiceBusiness;
     }
 
@@ -461,58 +464,386 @@ public class AdminController : Controller
         return RedirectToAction(nameof(Services));
     }
 
-    public IActionResult Inventory(string? search, string? status)
+    public async Task<IActionResult> Inventory(string? search, string? status)
     {
-        var all = store.Supplies;
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var filtered = all.Where(supply =>
-                (string.IsNullOrWhiteSpace(search) || supply.SupplyName.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
-                (string.IsNullOrWhiteSpace(status) ||
-                 status == "LowStock" && (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0) ||
-                 status == "Expired" && supply.ExpiryDate < today ||
-                 status == "Expiring" && supply.ExpiryDate >= today && supply.ExpiryDate <= today.AddDays(30)))
-            .ToList();
-        return View(new AdminInventoryViewModel
+        var expiringLimit = today.AddDays(30);
+
+        var allSupplies = _context.MedicalSupplies
+            .Where(supply => supply.IsDeleted != true);
+
+        var query = _context.MedicalSupplies
+            .Include(supply => supply.ServiceMaterialQuota)
+            .Where(supply => supply.IsDeleted != true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(supply =>
+                supply.SupplyName.Contains(keyword) ||
+                supply.Unit.Contains(keyword));
+        }
+
+        if (string.Equals(status, "LowStock", StringComparison.OrdinalIgnoreCase))
+        {
+            status = "LowStock";
+            query = query.Where(supply => (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0));
+        }
+        else if (string.Equals(status, "Expired", StringComparison.OrdinalIgnoreCase))
+        {
+            status = "Expired";
+            query = query.Where(supply =>
+                supply.ExpiryDate.HasValue &&
+                supply.ExpiryDate.Value < today);
+        }
+        else if (string.Equals(status, "Expiring", StringComparison.OrdinalIgnoreCase))
+        {
+            status = "Expiring";
+            query = query.Where(supply =>
+                supply.ExpiryDate.HasValue &&
+                supply.ExpiryDate.Value >= today &&
+                supply.ExpiryDate.Value <= expiringLimit);
+        }
+        else
+        {
+            status = null;
+        }
+
+        var model = new AdminInventoryViewModel
         {
             Search = search,
             Status = status,
-            TotalCount = all.Count,
-            LowStockCount = all.Count(supply => (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0)),
-            ExpiredCount = all.Count(supply => supply.ExpiryDate < today),
-            ExpiringCount = all.Count(supply => supply.ExpiryDate >= today && supply.ExpiryDate <= today.AddDays(30)),
-            Supplies = filtered,
-            RecentTransactions = store.InventoryTransactions.OrderByDescending(transaction => transaction.CreatedAt).ToList()
+            TotalCount = await allSupplies.CountAsync(),
+            LowStockCount = await allSupplies.CountAsync(supply =>
+                (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0)),
+            ExpiredCount = await allSupplies.CountAsync(supply =>
+                supply.ExpiryDate.HasValue &&
+                supply.ExpiryDate.Value < today),
+            ExpiringCount = await allSupplies.CountAsync(supply =>
+                supply.ExpiryDate.HasValue &&
+                supply.ExpiryDate.Value >= today &&
+                supply.ExpiryDate.Value <= expiringLimit),
+            Supplies = await query
+                .OrderBy(supply => supply.ExpiryDate == null)
+                .ThenBy(supply => supply.ExpiryDate)
+                .ThenBy(supply => supply.SupplyName)
+                .ToListAsync(),
+            RecentTransactions = await _context.InventoryTransactions
+                .Include(transaction => transaction.Supply)
+                .Include(transaction => transaction.Employee)
+                .OrderByDescending(transaction => transaction.CreatedAt)
+                .Take(12)
+                .ToListAsync()
+        };
+
+        return View(model);
+    }
+
+   [HttpGet]
+public IActionResult CreateSupply()
+{
+    var accessRedirect = GetAdminAccessRedirect();
+    if (accessRedirect != null)
+    {
+        return accessRedirect;
+    }
+
+    return View("SupplyForm", new AdminSupplyEditorViewModel
+    {
+        MinStockLevel = 5
+    });
+}
+
+[HttpGet]
+public async Task<IActionResult> EditSupply(int id)
+{
+    var accessRedirect = GetAdminAccessRedirect();
+    if (accessRedirect != null)
+    {
+        return accessRedirect;
+    }
+
+    var supply = await _context.MedicalSupplies
+        .Include(item => item.InventoryTransactions)
+        .FirstOrDefaultAsync(item => item.SupplyId == id && item.IsDeleted != true);
+
+    if (supply == null)
+    {
+        TempData["AdminError"] = "Không tìm thấy vật tư cần sửa.";
+        return RedirectToAction(nameof(Inventory));
+    }
+
+    return View("SupplyForm", new AdminSupplyEditorViewModel
+    {
+        SupplyId = supply.SupplyId,
+        SupplyName = supply.SupplyName,
+        Unit = supply.Unit,
+        MinStockLevel = supply.MinStockLevel ?? 0,
+        ExpiryDate = supply.ExpiryDate,
+        StockQuantity = supply.StockQuantity ?? 0,
+        TransactionCount = supply.InventoryTransactions.Count
+    });
+}
+
+[HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> SaveSupply(AdminSupplyEditorViewModel model)
+{
+    var accessRedirect = GetAdminAccessRedirect();
+    if (accessRedirect != null)
+    {
+        return accessRedirect;
+    }
+
+    model.SupplyName = model.SupplyName?.Trim() ?? string.Empty;
+    model.Unit = model.Unit?.Trim() ?? string.Empty;
+
+    var supplyId = model.SupplyId ?? 0;
+    if (!string.IsNullOrWhiteSpace(model.SupplyName) &&
+        !string.IsNullOrWhiteSpace(model.Unit) &&
+        await _context.MedicalSupplies.AnyAsync(supply =>
+            supply.SupplyId != supplyId &&
+            supply.IsDeleted != true &&
+            supply.SupplyName == model.SupplyName &&
+            supply.Unit == model.Unit))
+    {
+        ModelState.AddModelError(nameof(model.SupplyName), "Vật tư cùng tên và đơn vị tính đã tồn tại.");
+    }
+
+    MedicalSupply? supplyItem = null;
+    if (model.SupplyId.HasValue)
+    {
+        supplyItem = await _context.MedicalSupplies
+            .Include(item => item.InventoryTransactions)
+            .FirstOrDefaultAsync(item => item.SupplyId == model.SupplyId.Value && item.IsDeleted != true);
+
+        if (supplyItem == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy vật tư cần sửa.";
+            return RedirectToAction(nameof(Inventory));
+        }
+
+        model.StockQuantity = supplyItem.StockQuantity ?? 0;
+        model.TransactionCount = supplyItem.InventoryTransactions.Count;
+    }
+
+    if (!ModelState.IsValid)
+    {
+        return View("SupplyForm", model);
+    }
+
+    if (supplyItem == null)
+    {
+        supplyItem = new MedicalSupply
+        {
+            SupplyName = model.SupplyName,
+            Unit = model.Unit,
+            StockQuantity = 0,
+            MinStockLevel = model.MinStockLevel,
+            ExpiryDate = model.ExpiryDate,
+            CreatedAt = DateTime.Now,
+            IsDeleted = false
+        };
+
+        _context.MedicalSupplies.Add(supplyItem);
+    }
+    else
+    {
+        supplyItem.SupplyName = model.SupplyName;
+        supplyItem.Unit = model.Unit;
+        supplyItem.MinStockLevel = model.MinStockLevel;
+        supplyItem.ExpiryDate = model.ExpiryDate;
+        supplyItem.ModifiedAt = DateTime.Now;
+    }
+
+    await _context.SaveChangesAsync();
+
+    TempData["AdminSuccess"] = model.IsEditing
+        ? "Đã cập nhật thông tin vật tư. Tồn kho chỉ thay đổi qua nghiệp vụ nhập hoặc xuất kho."
+        : "Đã thêm vật tư mới. Hãy thực hiện nhập kho để ghi nhận số lượng ban đầu.";
+
+    return RedirectToAction(nameof(Inventory));
+}
+
+[HttpGet]
+public async Task<IActionResult> ImportSupply(int id)
+{
+    var accessRedirect = GetAdminAccessRedirect();
+    if (accessRedirect != null)
+    {
+        return accessRedirect;
+    }
+
+    var supply = await _context.MedicalSupplies
+        .FirstOrDefaultAsync(item => item.SupplyId == id && item.IsDeleted != true);
+
+    if (supply == null)
+    {
+        TempData["AdminError"] = "Không tìm thấy vật tư cần nhập kho.";
+        return RedirectToAction(nameof(Inventory));
+    }
+
+    return View("SupplyImport", new AdminSupplyImportViewModel
+    {
+        SupplyId = supply.SupplyId,
+        SupplyName = supply.SupplyName,
+        Unit = supply.Unit,
+        CurrentStock = supply.StockQuantity ?? 0,
+        Quantity = 1
+    });
+}
+
+[HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> ImportSupply(AdminSupplyImportViewModel model)
+{
+    var accessRedirect = GetAdminAccessRedirect();
+    if (accessRedirect != null)
+    {
+        return accessRedirect;
+    }
+
+    model.Note = string.IsNullOrWhiteSpace(model.Note) ? null : model.Note.Trim();
+
+    var supply = await _context.MedicalSupplies
+        .FirstOrDefaultAsync(item => item.SupplyId == model.SupplyId && item.IsDeleted != true);
+
+    if (supply == null)
+    {
+        TempData["AdminError"] = "Không tìm thấy vật tư cần nhập kho.";
+        return RedirectToAction(nameof(Inventory));
+    }
+
+    model.SupplyName = supply.SupplyName;
+    model.Unit = supply.Unit;
+    model.CurrentStock = supply.StockQuantity ?? 0;
+
+    if ((long)model.CurrentStock + model.Quantity > int.MaxValue)
+    {
+        ModelState.AddModelError(nameof(model.Quantity), "Số lượng sau khi nhập vượt quá giới hạn lưu trữ.");
+    }
+
+    if (!ModelState.IsValid)
+    {
+        return View("SupplyImport", model);
+    }
+
+    await _inventoryBusiness.ImportSupplyAsync(
+        supply,
+        model.Quantity,
+        HttpContext.Session.GetEmployeeId(),
+        model.Note);
+
+    TempData["AdminSuccess"] = $"Đã nhập {model.Quantity:N0} {supply.Unit} {supply.SupplyName} vào kho.";
+    return RedirectToAction(nameof(Inventory));
+}
+
+[HttpGet]
+public async Task<IActionResult> InventoryQuotas()
+{
+    var accessRedirect = GetAdminAccessRedirect();
+    if (accessRedirect != null)
+    {
+        return accessRedirect;
+    }
+
+    var model = new AdminInventoryQuotasViewModel();
+
+    await LoadInventoryQuotaListsAsync(model);
+
+    model.ServiceId = model.Services.FirstOrDefault()?.ServiceId ?? 0;
+    model.SupplyId = model.Supplies.FirstOrDefault()?.SupplyId ?? 0;
+
+    return View(model);
+}
+
+[HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> SaveInventoryQuota(AdminInventoryQuotasViewModel model)
+{
+    var accessRedirect = GetAdminAccessRedirect();
+    if (accessRedirect != null)
+    {
+        return accessRedirect;
+    }
+
+    if (!await _context.ServiceCatalogs.AnyAsync(service =>
+        service.ServiceId == model.ServiceId &&
+        service.IsDeleted != true))
+    {
+        ModelState.AddModelError(nameof(model.ServiceId), "Dịch vụ không tồn tại.");
+    }
+
+    if (!await _context.MedicalSupplies.AnyAsync(supply =>
+        supply.SupplyId == model.SupplyId &&
+        supply.IsDeleted != true))
+    {
+        ModelState.AddModelError(nameof(model.SupplyId), "Vật tư không tồn tại.");
+    }
+
+    if (!ModelState.IsValid)
+    {
+        await LoadInventoryQuotaListsAsync(model);
+        return View("InventoryQuotas", model);
+    }
+
+    var quota = await _context.ServiceMaterialQuota
+        .FirstOrDefaultAsync(item =>
+            item.ServiceId == model.ServiceId &&
+            item.SupplyId == model.SupplyId);
+
+    if (quota == null)
+    {
+        _context.ServiceMaterialQuota.Add(new ServiceMaterialQuotum
+        {
+            ServiceId = model.ServiceId,
+            SupplyId = model.SupplyId,
+            QuantityUsed = model.QuantityUsed
         });
     }
-
-    public IActionResult CreateSupply() => View("SupplyForm", new AdminSupplyEditorViewModel());
-
-    public IActionResult EditSupply(int id)
+    else
     {
-        var supply = store.Supplies.First(item => item.SupplyId == id);
-        return View("SupplyForm", new AdminSupplyEditorViewModel { SupplyId = supply.SupplyId, SupplyName = supply.SupplyName, Unit = supply.Unit, MinStockLevel = supply.MinStockLevel ?? 0, ExpiryDate = supply.ExpiryDate, StockQuantity = supply.StockQuantity ?? 0, TransactionCount = supply.InventoryTransactions.Count });
+        quota.QuantityUsed = model.QuantityUsed;
     }
 
-    [HttpPost]
-    public IActionResult SaveSupply() => DemoRedirect(nameof(Inventory), "Vật tư đã được lưu trong bản trình diễn.");
+    await _context.SaveChangesAsync();
 
-    [HttpGet]
-    public IActionResult ImportSupply(int id)
+    TempData["AdminSuccess"] = "Đã lưu định mức vật tư cho dịch vụ.";
+    return RedirectToAction(nameof(InventoryQuotas));
+}
+
+[HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> DeleteInventoryQuota(int serviceId, int supplyId)
+{
+    var accessRedirect = GetAdminAccessRedirect();
+    if (accessRedirect != null)
     {
-        var supply = store.Supplies.First(item => item.SupplyId == id);
-        return View(new AdminSupplyImportViewModel { SupplyId = id, SupplyName = supply.SupplyName, Unit = supply.Unit, CurrentStock = supply.StockQuantity ?? 0, Quantity = 10 });
+        return accessRedirect;
     }
 
-    [HttpPost]
-    public IActionResult ImportSupply(AdminSupplyImportViewModel model) => DemoRedirect(nameof(Inventory), "Phiếu nhập kho đã được mô phỏng.");
+    var quota = await _context.ServiceMaterialQuota
+        .FirstOrDefaultAsync(item => item.ServiceId == serviceId && item.SupplyId == supplyId);
 
-    public IActionResult InventoryQuotas() => View(new AdminInventoryQuotasViewModel { Quotas = store.MaterialQuotas, Services = store.Services, Supplies = store.Supplies, QuantityUsed = 1 });
+    if (quota == null)
+    {
+        TempData["AdminError"] = "Không tìm thấy định mức vật tư cần xóa.";
+        return RedirectToAction(nameof(InventoryQuotas));
+    }
 
-    [HttpPost]
-    public IActionResult SaveInventoryQuota() => DemoRedirect(nameof(InventoryQuotas), "Định mức vật tư đã được lưu trong bản trình diễn.");
+    _context.ServiceMaterialQuota.Remove(quota);
 
-    [HttpPost]
-    public IActionResult DeleteInventoryQuota() => DemoRedirect(nameof(InventoryQuotas), "Định mức vật tư đã được xóa trong bản trình diễn.");
+    await _context.SaveChangesAsync();
+
+    TempData["AdminSuccess"] = "Đã xóa định mức. Lịch hoàn thành sau thời điểm này sẽ không xuất vật tư này.";
+    return RedirectToAction(nameof(InventoryQuotas));
+}
 
     public IActionResult Employees(string? search, int? roleId, string? status)
     {
@@ -1891,6 +2222,28 @@ public class AdminController : Controller
                 (string.IsNullOrWhiteSpace(status) || message.Status == status))
             .ToList();
         return View(new AdminContactsViewModel { Search = search, Status = status, TotalCount = all.Count, NewCount = all.Count(message => message.Status == "New"), ReadCount = all.Count(message => message.Status == "Read"), RepliedCount = all.Count(message => message.Status == "Replied"), Messages = filtered });
+    }
+    private async Task LoadInventoryQuotaListsAsync(AdminInventoryQuotasViewModel model)
+    {
+        model.Quotas = await _context.ServiceMaterialQuota
+            .Include(quota => quota.Service)
+            .Include(quota => quota.Supply)
+            .Where(quota =>
+                quota.Service.IsDeleted != true &&
+                quota.Supply.IsDeleted != true)
+            .OrderBy(quota => quota.Service.ServiceName)
+            .ThenBy(quota => quota.Supply.SupplyName)
+            .ToListAsync();
+
+        model.Services = await _context.ServiceCatalogs
+            .Where(service => service.IsDeleted != true)
+            .OrderBy(service => service.ServiceName)
+            .ToListAsync();
+
+        model.Supplies = await _context.MedicalSupplies
+            .Where(supply => supply.IsDeleted != true)
+            .OrderBy(supply => supply.SupplyName)
+            .ToListAsync();
     }
 
     [HttpPost]
