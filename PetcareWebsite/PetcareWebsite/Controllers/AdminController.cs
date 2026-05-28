@@ -2502,15 +2502,48 @@ public class AdminController : Controller
 
         return RedirectToAction(nameof(Invoices));
     }
-
-    public IActionResult Contacts(string? search, string? status)
+    [HttpGet]
+    public async Task<IActionResult> Contacts(string? search, string? status)
     {
-        var all = store.ContactMessages;
-        var filtered = all.Where(message =>
-                (string.IsNullOrWhiteSpace(search) || message.FullName.Contains(search, StringComparison.OrdinalIgnoreCase) || message.PhoneNumber.Contains(search)) &&
-                (string.IsNullOrWhiteSpace(status) || message.Status == status))
-            .ToList();
-        return View(new AdminContactsViewModel { Search = search, Status = status, TotalCount = all.Count, NewCount = all.Count(message => message.Status == "New"), ReadCount = all.Count(message => message.Status == "Read"), RepliedCount = all.Count(message => message.Status == "Replied"), Messages = filtered });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var allMessages = _context.ContactMessages.AsQueryable();
+        var query = _context.ContactMessages
+            .Include(m => m.Customer)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(m =>
+                m.FullName.Contains(keyword) ||
+                m.PhoneNumber.Contains(keyword) ||
+                (m.Email != null && m.Email.Contains(keyword)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(m => m.Status == status);
+        }
+
+        var model = new AdminContactsViewModel
+        {
+            Search = search,
+            Status = status,
+            TotalCount = await allMessages.CountAsync(),
+            NewCount = await allMessages.CountAsync(m => m.Status == "New"),
+            ReadCount = await allMessages.CountAsync(m => m.Status == "Read"),
+            RepliedCount = await allMessages.CountAsync(m => m.Status == "Replied"),
+            Messages = await query
+                .OrderByDescending(m => m.CreatedAt)
+                .ToListAsync()
+        };
+
+        return View(model);
     }
     private async Task LoadInventoryQuotaListsAsync(AdminInventoryQuotasViewModel model)
     {
@@ -2544,7 +2577,37 @@ public class AdminController : Controller
     }
 
     [HttpPost]
-    public IActionResult UpdateContactStatus() => DemoRedirect(nameof(Contacts), "Liên hệ đã được xử lý trong bản trình diễn.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateContactStatus(int contactMessageId, string status, string? adminNote)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var allowedStatuses = new[] { "New", "Read", "Replied" };
+        if (!allowedStatuses.Contains(status))
+        {
+            TempData["AdminError"] = "Trạng thái liên hệ không hợp lệ.";
+            return RedirectToAction(nameof(Contacts));
+        }
+
+        var contact = await _context.ContactMessages.FindAsync(contactMessageId);
+        if (contact == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy tin nhắn liên hệ.";
+            return RedirectToAction(nameof(Contacts));
+        }
+
+        contact.Status = status;
+        contact.AdminNote = string.IsNullOrWhiteSpace(adminNote) ? null : adminNote.Trim();
+        contact.RepliedAt = status == "Replied" ? DateTime.Now : null;
+
+        await _context.SaveChangesAsync();
+        TempData["AdminSuccess"] = "Đã cập nhật xử lý liên hệ.";
+        return RedirectToAction(nameof(Contacts));
+    }
 
     private AdminPetEditorViewModel PetEditor(Pet? pet, Customer customer) => new()
     {
