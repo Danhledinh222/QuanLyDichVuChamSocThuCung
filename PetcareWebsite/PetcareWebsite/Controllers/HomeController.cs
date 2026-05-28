@@ -678,8 +678,16 @@ namespace PetcareWebsite.ViewModels
     public class AdminSupplyEditorViewModel
     {
         public int? SupplyId { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng nhập tên vật tư.")]
+        [StringLength(100, ErrorMessage = "Tên vật tư tối đa 100 ký tự.")]
         public string SupplyName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Vui lòng nhập đơn vị tính.")]
+        [StringLength(20, ErrorMessage = "Đơn vị tính tối đa 20 ký tự.")]
         public string Unit { get; set; } = string.Empty;
+
+        [Range(0, 1000000, ErrorMessage = "Mức tồn tối thiểu phải từ 0 đến 1,000,000.")]
         public int MinStockLevel { get; set; } = 5;
 
         public DateOnly? ExpiryDate { get; set; }
@@ -700,14 +708,23 @@ namespace PetcareWebsite.ViewModels
         public string Unit { get; set; } = string.Empty;
 
         public int CurrentStock { get; set; }
+
+        [Range(1, 1000000, ErrorMessage = "Số lượng nhập phải từ 1 đến 1,000,000.")]
         public int Quantity { get; set; } = 1;
+
+        [StringLength(255, ErrorMessage = "Ghi chú tối đa 255 ký tự.")]
         public string? Note { get; set; }
     }
 
     public class AdminInventoryQuotasViewModel
     {
+        [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn dịch vụ.")]
         public int ServiceId { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn vật tư.")]
         public int SupplyId { get; set; }
+
+        [Range(1, 1000000, ErrorMessage = "Định mức phải từ 1 đến 1,000,000.")]
         public int QuantityUsed { get; set; } = 1;
 
         public List<ServiceMaterialQuotum> Quotas { get; set; } = new();
