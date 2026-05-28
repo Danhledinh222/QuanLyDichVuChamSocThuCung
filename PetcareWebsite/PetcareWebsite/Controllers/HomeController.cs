@@ -765,6 +765,7 @@ namespace PetcareWebsite.ViewModels
 
         [Required(ErrorMessage = "Vui lòng nhập số điện thoại.")]
         [StringLength(15, ErrorMessage = "Số điện thoại tối đa 15 ký tự.")]
+        [VietnamPhoneNumber]
         public string PhoneNumber { get; set; } = string.Empty;
 
         [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn vai trò nhân viên.")]
@@ -894,9 +895,21 @@ namespace PetcareWebsite.ViewModels
         public int? CustomerId { get; set; }
 
         public int? AccountId { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng nhập họ tên khách hàng.")]
+        [StringLength(100, ErrorMessage = "Họ tên tối đa 100 ký tự.")]
         public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Vui lòng nhập số điện thoại.")]
+        [StringLength(15, ErrorMessage = "Số điện thoại tối đa 15 ký tự.")]
+        [VietnamPhoneNumber]
         public string PhoneNumber { get; set; } = string.Empty;
+
+        [StringLength(100, ErrorMessage = "Email tối đa 100 ký tự.")]
+        [EmailAddress(ErrorMessage = "Email không đúng định dạng.")]
         public string? Email { get; set; }
+
+        [StringLength(255, ErrorMessage = "Địa chỉ tối đa 255 ký tự.")]
         public string? Address { get; set; }
 
         public bool IsEditing => CustomerId.HasValue;
@@ -911,10 +924,18 @@ namespace PetcareWebsite.ViewModels
         public int CustomerId { get; set; }
 
         public string CustomerName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Vui lòng nhập tên thú cưng.")]
+        [StringLength(50, ErrorMessage = "Tên thú cưng tối đa 50 ký tự.")]
         public string Name { get; set; } = string.Empty;
+
+        [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn loại thú cưng.")]
         public int SpeciesId { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn giống thú cưng.")]
         public int BreedId { get; set; }
 
+        [PetWeight]
         public decimal? Weight { get; set; }
 
         public string? Notes { get; set; }
@@ -935,7 +956,11 @@ namespace PetcareWebsite.ViewModels
         public int CustomerId { get; set; }
 
         public int PetId { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn dịch vụ.")]
         public int ServiceId { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng chọn thời gian hẹn.")]
         public DateTime BookingDate { get; set; }
 
         public string? Notes { get; set; }
@@ -949,15 +974,26 @@ namespace PetcareWebsite.ViewModels
         public bool HasPayment { get; set; }
 
         public string CustomerMode { get; set; } = "Existing";
+
+        [StringLength(100)]
         public string? GuestFullName { get; set; }
+
+        [StringLength(15, ErrorMessage = "Số điện thoại tối đa 15 ký tự.")]
+        [VietnamPhoneNumber]
         public string? GuestPhoneNumber { get; set; }
+
+        [StringLength(100)]
+        [EmailAddress(ErrorMessage = "Email không đúng định dạng.")]
         public string? GuestEmail { get; set; }
+
+        [StringLength(50)]
         public string? GuestPetName { get; set; }
 
         public int GuestSpeciesId { get; set; }
 
         public int GuestBreedId { get; set; }
 
+        [PetWeight]
         public decimal? GuestPetWeight { get; set; }
 
         public string? GuestPetNotes { get; set; }
