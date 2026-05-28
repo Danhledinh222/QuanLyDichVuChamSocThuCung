@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetcareWebsite.Data;
@@ -45,34 +46,120 @@ public class AdminController : Controller
         _invoiceBusiness = invoiceBusiness;
     }
 
-    public IActionResult Index()
+    [HttpGet]
+    public async Task<IActionResult> Index()
     {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        await _bookingBusiness.MarkExpiredBookingsAsync();
+
+        var today = DateTime.Today;
+        var tomorrow = today.AddDays(1);
+        var monthStart = new DateTime(today.Year, today.Month, 1);
+        var weekStart = today.AddDays(-6);
+
+        var weeklyBookingDates = await _context.Bookings
+            .Where(booking =>
+                booking.IsDeleted != true &&
+                booking.BookingDate >= weekStart &&
+                booking.BookingDate < tomorrow)
+            .Select(booking => booking.BookingDate)
+            .ToListAsync();
+
+        var weeklyPayments = await _context.Payments
+            .Where(payment =>
+                payment.PaymentDate != null &&
+                payment.PaymentDate >= weekStart &&
+                payment.PaymentDate < tomorrow)
+            .Select(payment => new
+            {
+                PaymentDate = payment.PaymentDate!.Value,
+                payment.Amount
+            })
+            .ToListAsync();
+
+        var recentBookings = await _context.Bookings
+            .Include(booking => booking.Customer)
+            .Include(booking => booking.Status)
+            .Include(booking => booking.Invoice)
+            .Include(booking => booking.BookingDetails)
+                .ThenInclude(detail => detail.Pet)
+            .Include(booking => booking.BookingDetails)
+                .ThenInclude(detail => detail.Service)
+            .Where(booking => booking.IsDeleted != true)
+            .OrderByDescending(booking => booking.CreatedAt ?? booking.BookingDate)
+            .Take(6)
+            .ToListAsync();
+
         var model = new AdminDashboardViewModel
         {
-            AdminName = "Lê Đình Danh",
-            TodayBookingCount = store.Bookings.Count(booking => booking.BookingDate.Date == DateTime.Today),
-            PendingBookingCount = store.Bookings.Count(booking => booking.StatusId == 1),
-            CustomerCount = store.Customers.Count,
-            PetCount = store.Pets.Count,
-            MonthlyRevenue = store.Invoices.Sum(invoice => invoice.PaidAmount ?? 0),
-            NewContactCount = store.ContactMessages.Count(message => message.Status == "New"),
-            LowStockCount = store.Supplies.Count(supply => (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0)),
-            WeekLabels = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
-            WeeklyBookingCounts = [2, 3, 1, 4, 2, 5, 3],
-            WeeklyRevenue = [350000, 550000, 150000, 850000, 400000, 1100000, 650000],
-            RecentContacts = store.ContactMessages.Take(3).ToList(),
-            LowStockSupplies = store.Supplies.Where(supply => (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0)).ToList(),
-            RecentBookings = store.Bookings.OrderByDescending(booking => booking.BookingDate).Take(4).Select(booking => new AdminBookingSummaryViewModel
+            AdminName = HttpContext.Session.GetString("EmployeeName") ?? "Admin",
+            TodayBookingCount = await _context.Bookings.CountAsync(booking =>
+                booking.IsDeleted != true &&
+                booking.BookingDate >= today &&
+                booking.BookingDate < tomorrow),
+            PendingBookingCount = await _context.Bookings.CountAsync(booking =>
+                booking.IsDeleted != true &&
+                (booking.StatusId == BookingStatusPending ||
+                 booking.StatusId == BookingStatusConfirmed ||
+                 booking.StatusId == BookingStatusInProgress)),
+            CustomerCount = await _context.Customers.CountAsync(customer => customer.IsDeleted != true),
+            PetCount = await _context.Pets.CountAsync(pet => pet.IsDeleted != true),
+            MonthlyRevenue = await _context.Payments
+                .Where(payment =>
+                    payment.PaymentDate != null &&
+                    payment.PaymentDate >= monthStart &&
+                    payment.PaymentDate < tomorrow)
+                .SumAsync(payment => (decimal?)payment.Amount) ?? 0m,
+            NewContactCount = await _context.ContactMessages.CountAsync(message => message.Status == "New"),
+            LowStockCount = await _context.MedicalSupplies.CountAsync(supply =>
+                supply.IsDeleted != true &&
+                (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0)),
+            RecentContacts = await _context.ContactMessages
+                .OrderByDescending(message => message.CreatedAt)
+                .Take(5)
+                .ToListAsync(),
+            LowStockSupplies = await _context.MedicalSupplies
+                .Where(supply =>
+                    supply.IsDeleted != true &&
+                    (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0))
+                .OrderBy(supply => supply.StockQuantity)
+                .Take(5)
+                .ToListAsync()
+        };
+
+        for (var i = 0; i < 7; i++)
+        {
+            var date = weekStart.AddDays(i);
+            model.WeekLabels.Add(date.ToString("dd/MM"));
+            model.WeeklyBookingCounts.Add(weeklyBookingDates.Count(bookingDate => bookingDate.Date == date));
+            model.WeeklyRevenue.Add(weeklyPayments
+                .Where(payment => payment.PaymentDate.Date == date)
+                .Sum(payment => payment.Amount));
+        }
+
+        model.RecentBookings = recentBookings.Select(booking =>
+        {
+            var firstDetail = booking.BookingDetails.FirstOrDefault();
+            return new AdminBookingSummaryViewModel
             {
                 BookingCode = booking.BookingCode,
-                CustomerName = booking.Customer.FullName,
-                PetName = booking.BookingDetails.First().Pet.Name,
-                ServiceName = booking.BookingDetails.First().Service.ServiceName,
+                CustomerName = booking.Customer?.FullName ?? "Khách hàng",
+                PetName = firstDetail?.Pet?.Name ?? "Thú cưng",
+                ServiceName = firstDetail?.Service?.ServiceName ?? "Dịch vụ",
                 BookingDate = booking.BookingDate,
                 StatusId = booking.StatusId,
-                TotalAmount = (booking.Invoice?.TotalAmount ?? 0) - (booking.Invoice?.DiscountAmount ?? 0)
-            }).ToList()
-        };
+                StatusName = booking.Status?.StatusName ?? "Pending",
+                TotalAmount = booking.Invoice != null
+                    ? (booking.Invoice.TotalAmount ?? 0) - (booking.Invoice.DiscountAmount ?? 0)
+                    : booking.BookingDetails.Sum(detail => detail.ActualPrice)
+            };
+        }).ToList();
+
         return View(model);
     }
 
