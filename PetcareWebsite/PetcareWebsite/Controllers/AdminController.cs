@@ -2409,6 +2409,15 @@ public class AdminController : Controller
                 return RedirectToAction(nameof(Bookings));
             }
         }
+        if (nextStatusId == BookingStatusCompleted)
+        {
+            var stockValidation = await _inventoryBusiness.ValidateCompletionAsync(booking.BookingDetails.ToList());
+            if (!stockValidation.Succeeded)
+            {
+                TempData["AdminError"] = stockValidation.ErrorMessage;
+                return RedirectToAction(nameof(Bookings));
+            }
+        }
 
         var now = DateTime.Now;
         foreach (var detail in booking.BookingDetails)
