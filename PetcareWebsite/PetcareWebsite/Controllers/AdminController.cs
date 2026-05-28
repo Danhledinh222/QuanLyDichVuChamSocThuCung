@@ -461,28 +461,85 @@ public class AdminController : Controller
         return RedirectToAction(nameof(Services));
     }
 
-    public IActionResult Inventory(string? search, string? status)
+    public async Task<IActionResult> Inventory(string? search, string? status)
     {
-        var all = store.Supplies;
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var filtered = all.Where(supply =>
-                (string.IsNullOrWhiteSpace(search) || supply.SupplyName.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
-                (string.IsNullOrWhiteSpace(status) ||
-                 status == "LowStock" && (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0) ||
-                 status == "Expired" && supply.ExpiryDate < today ||
-                 status == "Expiring" && supply.ExpiryDate >= today && supply.ExpiryDate <= today.AddDays(30)))
-            .ToList();
-        return View(new AdminInventoryViewModel
+        var expiringLimit = today.AddDays(30);
+
+        var allSupplies = _context.MedicalSupplies
+            .Where(supply => supply.IsDeleted != true);
+
+        var query = _context.MedicalSupplies
+            .Include(supply => supply.ServiceMaterialQuota)
+            .Where(supply => supply.IsDeleted != true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(supply =>
+                supply.SupplyName.Contains(keyword) ||
+                supply.Unit.Contains(keyword));
+        }
+
+        if (string.Equals(status, "LowStock", StringComparison.OrdinalIgnoreCase))
+        {
+            status = "LowStock";
+            query = query.Where(supply => (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0));
+        }
+        else if (string.Equals(status, "Expired", StringComparison.OrdinalIgnoreCase))
+        {
+            status = "Expired";
+            query = query.Where(supply =>
+                supply.ExpiryDate.HasValue &&
+                supply.ExpiryDate.Value < today);
+        }
+        else if (string.Equals(status, "Expiring", StringComparison.OrdinalIgnoreCase))
+        {
+            status = "Expiring";
+            query = query.Where(supply =>
+                supply.ExpiryDate.HasValue &&
+                supply.ExpiryDate.Value >= today &&
+                supply.ExpiryDate.Value <= expiringLimit);
+        }
+        else
+        {
+            status = null;
+        }
+
+        var model = new AdminInventoryViewModel
         {
             Search = search,
             Status = status,
-            TotalCount = all.Count,
-            LowStockCount = all.Count(supply => (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0)),
-            ExpiredCount = all.Count(supply => supply.ExpiryDate < today),
-            ExpiringCount = all.Count(supply => supply.ExpiryDate >= today && supply.ExpiryDate <= today.AddDays(30)),
-            Supplies = filtered,
-            RecentTransactions = store.InventoryTransactions.OrderByDescending(transaction => transaction.CreatedAt).ToList()
-        });
+            TotalCount = await allSupplies.CountAsync(),
+            LowStockCount = await allSupplies.CountAsync(supply =>
+                (supply.StockQuantity ?? 0) <= (supply.MinStockLevel ?? 0)),
+            ExpiredCount = await allSupplies.CountAsync(supply =>
+                supply.ExpiryDate.HasValue &&
+                supply.ExpiryDate.Value < today),
+            ExpiringCount = await allSupplies.CountAsync(supply =>
+                supply.ExpiryDate.HasValue &&
+                supply.ExpiryDate.Value >= today &&
+                supply.ExpiryDate.Value <= expiringLimit),
+            Supplies = await query
+                .OrderBy(supply => supply.ExpiryDate == null)
+                .ThenBy(supply => supply.ExpiryDate)
+                .ThenBy(supply => supply.SupplyName)
+                .ToListAsync(),
+            RecentTransactions = await _context.InventoryTransactions
+                .Include(transaction => transaction.Supply)
+                .Include(transaction => transaction.Employee)
+                .OrderByDescending(transaction => transaction.CreatedAt)
+                .Take(12)
+                .ToListAsync()
+        };
+
+        return View(model);
     }
 
     public IActionResult CreateSupply() => View("SupplyForm", new AdminSupplyEditorViewModel());
