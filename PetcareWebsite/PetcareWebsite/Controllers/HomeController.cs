@@ -758,8 +758,16 @@ namespace PetcareWebsite.ViewModels
     public class AdminEmployeeEditorViewModel
     {
         public int? EmployeeId { get; set; }
+
+        [Required(ErrorMessage = "Vui lòng nhập họ tên nhân viên.")]
+        [StringLength(100, ErrorMessage = "Họ tên tối đa 100 ký tự.")]
         public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Vui lòng nhập số điện thoại.")]
+        [StringLength(15, ErrorMessage = "Số điện thoại tối đa 15 ký tự.")]
         public string PhoneNumber { get; set; } = string.Empty;
+
+        [Range(1, int.MaxValue, ErrorMessage = "Vui lòng chọn vai trò nhân viên.")]
         public int RoleId { get; set; }
 
         public bool IsActive { get; set; } = true;

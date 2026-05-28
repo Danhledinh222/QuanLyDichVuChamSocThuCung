@@ -13,6 +13,7 @@ namespace PetcareWebsite.Controllers;
 public class AdminController : Controller
 {
     private const int AdminRoleId = (int)SystemRoleCode.Admin;
+    private const int CustomerRoleId = (int)SystemRoleCode.Customer;
     private const int BookingStatusPending = (int)BookingStatusCode.Pending;
     private const int BookingStatusConfirmed = (int)BookingStatusCode.Confirmed;
     private const int BookingStatusCompleted = (int)BookingStatusCode.Completed;
@@ -545,326 +546,614 @@ public class AdminController : Controller
         return View(model);
     }
 
-   [HttpGet]
-public IActionResult CreateSupply()
-{
-    var accessRedirect = GetAdminAccessRedirect();
-    if (accessRedirect != null)
+    [HttpGet]
+    public IActionResult CreateSupply()
     {
-        return accessRedirect;
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        return View("SupplyForm", new AdminSupplyEditorViewModel
+        {
+            MinStockLevel = 5
+        });
     }
 
-    return View("SupplyForm", new AdminSupplyEditorViewModel
+    [HttpGet]
+    public async Task<IActionResult> EditSupply(int id)
     {
-        MinStockLevel = 5
-    });
-}
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
 
-[HttpGet]
-public async Task<IActionResult> EditSupply(int id)
-{
-    var accessRedirect = GetAdminAccessRedirect();
-    if (accessRedirect != null)
-    {
-        return accessRedirect;
-    }
-
-    var supply = await _context.MedicalSupplies
-        .Include(item => item.InventoryTransactions)
-        .FirstOrDefaultAsync(item => item.SupplyId == id && item.IsDeleted != true);
-
-    if (supply == null)
-    {
-        TempData["AdminError"] = "Không tìm thấy vật tư cần sửa.";
-        return RedirectToAction(nameof(Inventory));
-    }
-
-    return View("SupplyForm", new AdminSupplyEditorViewModel
-    {
-        SupplyId = supply.SupplyId,
-        SupplyName = supply.SupplyName,
-        Unit = supply.Unit,
-        MinStockLevel = supply.MinStockLevel ?? 0,
-        ExpiryDate = supply.ExpiryDate,
-        StockQuantity = supply.StockQuantity ?? 0,
-        TransactionCount = supply.InventoryTransactions.Count
-    });
-}
-
-[HttpPost]
-[ValidateAntiForgeryToken]
-public async Task<IActionResult> SaveSupply(AdminSupplyEditorViewModel model)
-{
-    var accessRedirect = GetAdminAccessRedirect();
-    if (accessRedirect != null)
-    {
-        return accessRedirect;
-    }
-
-    model.SupplyName = model.SupplyName?.Trim() ?? string.Empty;
-    model.Unit = model.Unit?.Trim() ?? string.Empty;
-
-    var supplyId = model.SupplyId ?? 0;
-    if (!string.IsNullOrWhiteSpace(model.SupplyName) &&
-        !string.IsNullOrWhiteSpace(model.Unit) &&
-        await _context.MedicalSupplies.AnyAsync(supply =>
-            supply.SupplyId != supplyId &&
-            supply.IsDeleted != true &&
-            supply.SupplyName == model.SupplyName &&
-            supply.Unit == model.Unit))
-    {
-        ModelState.AddModelError(nameof(model.SupplyName), "Vật tư cùng tên và đơn vị tính đã tồn tại.");
-    }
-
-    MedicalSupply? supplyItem = null;
-    if (model.SupplyId.HasValue)
-    {
-        supplyItem = await _context.MedicalSupplies
+        var supply = await _context.MedicalSupplies
             .Include(item => item.InventoryTransactions)
-            .FirstOrDefaultAsync(item => item.SupplyId == model.SupplyId.Value && item.IsDeleted != true);
+            .FirstOrDefaultAsync(item => item.SupplyId == id && item.IsDeleted != true);
 
-        if (supplyItem == null)
+        if (supply == null)
         {
             TempData["AdminError"] = "Không tìm thấy vật tư cần sửa.";
             return RedirectToAction(nameof(Inventory));
         }
 
-        model.StockQuantity = supplyItem.StockQuantity ?? 0;
-        model.TransactionCount = supplyItem.InventoryTransactions.Count;
-    }
-
-    if (!ModelState.IsValid)
-    {
-        return View("SupplyForm", model);
-    }
-
-    if (supplyItem == null)
-    {
-        supplyItem = new MedicalSupply
+        return View("SupplyForm", new AdminSupplyEditorViewModel
         {
-            SupplyName = model.SupplyName,
-            Unit = model.Unit,
-            StockQuantity = 0,
-            MinStockLevel = model.MinStockLevel,
-            ExpiryDate = model.ExpiryDate,
-            CreatedAt = DateTime.Now,
-            IsDeleted = false
-        };
-
-        _context.MedicalSupplies.Add(supplyItem);
-    }
-    else
-    {
-        supplyItem.SupplyName = model.SupplyName;
-        supplyItem.Unit = model.Unit;
-        supplyItem.MinStockLevel = model.MinStockLevel;
-        supplyItem.ExpiryDate = model.ExpiryDate;
-        supplyItem.ModifiedAt = DateTime.Now;
-    }
-
-    await _context.SaveChangesAsync();
-
-    TempData["AdminSuccess"] = model.IsEditing
-        ? "Đã cập nhật thông tin vật tư. Tồn kho chỉ thay đổi qua nghiệp vụ nhập hoặc xuất kho."
-        : "Đã thêm vật tư mới. Hãy thực hiện nhập kho để ghi nhận số lượng ban đầu.";
-
-    return RedirectToAction(nameof(Inventory));
-}
-
-[HttpGet]
-public async Task<IActionResult> ImportSupply(int id)
-{
-    var accessRedirect = GetAdminAccessRedirect();
-    if (accessRedirect != null)
-    {
-        return accessRedirect;
-    }
-
-    var supply = await _context.MedicalSupplies
-        .FirstOrDefaultAsync(item => item.SupplyId == id && item.IsDeleted != true);
-
-    if (supply == null)
-    {
-        TempData["AdminError"] = "Không tìm thấy vật tư cần nhập kho.";
-        return RedirectToAction(nameof(Inventory));
-    }
-
-    return View("SupplyImport", new AdminSupplyImportViewModel
-    {
-        SupplyId = supply.SupplyId,
-        SupplyName = supply.SupplyName,
-        Unit = supply.Unit,
-        CurrentStock = supply.StockQuantity ?? 0,
-        Quantity = 1
-    });
-}
-
-[HttpPost]
-[ValidateAntiForgeryToken]
-public async Task<IActionResult> ImportSupply(AdminSupplyImportViewModel model)
-{
-    var accessRedirect = GetAdminAccessRedirect();
-    if (accessRedirect != null)
-    {
-        return accessRedirect;
-    }
-
-    model.Note = string.IsNullOrWhiteSpace(model.Note) ? null : model.Note.Trim();
-
-    var supply = await _context.MedicalSupplies
-        .FirstOrDefaultAsync(item => item.SupplyId == model.SupplyId && item.IsDeleted != true);
-
-    if (supply == null)
-    {
-        TempData["AdminError"] = "Không tìm thấy vật tư cần nhập kho.";
-        return RedirectToAction(nameof(Inventory));
-    }
-
-    model.SupplyName = supply.SupplyName;
-    model.Unit = supply.Unit;
-    model.CurrentStock = supply.StockQuantity ?? 0;
-
-    if ((long)model.CurrentStock + model.Quantity > int.MaxValue)
-    {
-        ModelState.AddModelError(nameof(model.Quantity), "Số lượng sau khi nhập vượt quá giới hạn lưu trữ.");
-    }
-
-    if (!ModelState.IsValid)
-    {
-        return View("SupplyImport", model);
-    }
-
-    await _inventoryBusiness.ImportSupplyAsync(
-        supply,
-        model.Quantity,
-        HttpContext.Session.GetEmployeeId(),
-        model.Note);
-
-    TempData["AdminSuccess"] = $"Đã nhập {model.Quantity:N0} {supply.Unit} {supply.SupplyName} vào kho.";
-    return RedirectToAction(nameof(Inventory));
-}
-
-[HttpGet]
-public async Task<IActionResult> InventoryQuotas()
-{
-    var accessRedirect = GetAdminAccessRedirect();
-    if (accessRedirect != null)
-    {
-        return accessRedirect;
-    }
-
-    var model = new AdminInventoryQuotasViewModel();
-
-    await LoadInventoryQuotaListsAsync(model);
-
-    model.ServiceId = model.Services.FirstOrDefault()?.ServiceId ?? 0;
-    model.SupplyId = model.Supplies.FirstOrDefault()?.SupplyId ?? 0;
-
-    return View(model);
-}
-
-[HttpPost]
-[ValidateAntiForgeryToken]
-public async Task<IActionResult> SaveInventoryQuota(AdminInventoryQuotasViewModel model)
-{
-    var accessRedirect = GetAdminAccessRedirect();
-    if (accessRedirect != null)
-    {
-        return accessRedirect;
-    }
-
-    if (!await _context.ServiceCatalogs.AnyAsync(service =>
-        service.ServiceId == model.ServiceId &&
-        service.IsDeleted != true))
-    {
-        ModelState.AddModelError(nameof(model.ServiceId), "Dịch vụ không tồn tại.");
-    }
-
-    if (!await _context.MedicalSupplies.AnyAsync(supply =>
-        supply.SupplyId == model.SupplyId &&
-        supply.IsDeleted != true))
-    {
-        ModelState.AddModelError(nameof(model.SupplyId), "Vật tư không tồn tại.");
-    }
-
-    if (!ModelState.IsValid)
-    {
-        await LoadInventoryQuotaListsAsync(model);
-        return View("InventoryQuotas", model);
-    }
-
-    var quota = await _context.ServiceMaterialQuota
-        .FirstOrDefaultAsync(item =>
-            item.ServiceId == model.ServiceId &&
-            item.SupplyId == model.SupplyId);
-
-    if (quota == null)
-    {
-        _context.ServiceMaterialQuota.Add(new ServiceMaterialQuotum
-        {
-            ServiceId = model.ServiceId,
-            SupplyId = model.SupplyId,
-            QuantityUsed = model.QuantityUsed
+            SupplyId = supply.SupplyId,
+            SupplyName = supply.SupplyName,
+            Unit = supply.Unit,
+            MinStockLevel = supply.MinStockLevel ?? 0,
+            ExpiryDate = supply.ExpiryDate,
+            StockQuantity = supply.StockQuantity ?? 0,
+            TransactionCount = supply.InventoryTransactions.Count
         });
     }
-    else
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveSupply(AdminSupplyEditorViewModel model)
     {
-        quota.QuantityUsed = model.QuantityUsed;
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        model.SupplyName = model.SupplyName?.Trim() ?? string.Empty;
+        model.Unit = model.Unit?.Trim() ?? string.Empty;
+
+        var supplyId = model.SupplyId ?? 0;
+        if (!string.IsNullOrWhiteSpace(model.SupplyName) &&
+            !string.IsNullOrWhiteSpace(model.Unit) &&
+            await _context.MedicalSupplies.AnyAsync(supply =>
+                supply.SupplyId != supplyId &&
+                supply.IsDeleted != true &&
+                supply.SupplyName == model.SupplyName &&
+                supply.Unit == model.Unit))
+        {
+            ModelState.AddModelError(nameof(model.SupplyName), "Vật tư cùng tên và đơn vị tính đã tồn tại.");
+        }
+
+        MedicalSupply? supplyItem = null;
+        if (model.SupplyId.HasValue)
+        {
+            supplyItem = await _context.MedicalSupplies
+                .Include(item => item.InventoryTransactions)
+                .FirstOrDefaultAsync(item => item.SupplyId == model.SupplyId.Value && item.IsDeleted != true);
+
+            if (supplyItem == null)
+            {
+                TempData["AdminError"] = "Không tìm thấy vật tư cần sửa.";
+                return RedirectToAction(nameof(Inventory));
+            }
+
+            model.StockQuantity = supplyItem.StockQuantity ?? 0;
+            model.TransactionCount = supplyItem.InventoryTransactions.Count;
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return View("SupplyForm", model);
+        }
+
+        if (supplyItem == null)
+        {
+            supplyItem = new MedicalSupply
+            {
+                SupplyName = model.SupplyName,
+                Unit = model.Unit,
+                StockQuantity = 0,
+                MinStockLevel = model.MinStockLevel,
+                ExpiryDate = model.ExpiryDate,
+                CreatedAt = DateTime.Now,
+                IsDeleted = false
+            };
+
+            _context.MedicalSupplies.Add(supplyItem);
+        }
+        else
+        {
+            supplyItem.SupplyName = model.SupplyName;
+            supplyItem.Unit = model.Unit;
+            supplyItem.MinStockLevel = model.MinStockLevel;
+            supplyItem.ExpiryDate = model.ExpiryDate;
+            supplyItem.ModifiedAt = DateTime.Now;
+        }
+
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = model.IsEditing
+            ? "Đã cập nhật thông tin vật tư. Tồn kho chỉ thay đổi qua nghiệp vụ nhập hoặc xuất kho."
+            : "Đã thêm vật tư mới. Hãy thực hiện nhập kho để ghi nhận số lượng ban đầu.";
+
+        return RedirectToAction(nameof(Inventory));
     }
 
-    await _context.SaveChangesAsync();
-
-    TempData["AdminSuccess"] = "Đã lưu định mức vật tư cho dịch vụ.";
-    return RedirectToAction(nameof(InventoryQuotas));
-}
-
-[HttpPost]
-[ValidateAntiForgeryToken]
-public async Task<IActionResult> DeleteInventoryQuota(int serviceId, int supplyId)
-{
-    var accessRedirect = GetAdminAccessRedirect();
-    if (accessRedirect != null)
+    [HttpGet]
+    public async Task<IActionResult> ImportSupply(int id)
     {
-        return accessRedirect;
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var supply = await _context.MedicalSupplies
+            .FirstOrDefaultAsync(item => item.SupplyId == id && item.IsDeleted != true);
+
+        if (supply == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy vật tư cần nhập kho.";
+            return RedirectToAction(nameof(Inventory));
+        }
+
+        return View("SupplyImport", new AdminSupplyImportViewModel
+        {
+            SupplyId = supply.SupplyId,
+            SupplyName = supply.SupplyName,
+            Unit = supply.Unit,
+            CurrentStock = supply.StockQuantity ?? 0,
+            Quantity = 1
+        });
     }
 
-    var quota = await _context.ServiceMaterialQuota
-        .FirstOrDefaultAsync(item => item.ServiceId == serviceId && item.SupplyId == supplyId);
-
-    if (quota == null)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ImportSupply(AdminSupplyImportViewModel model)
     {
-        TempData["AdminError"] = "Không tìm thấy định mức vật tư cần xóa.";
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        model.Note = string.IsNullOrWhiteSpace(model.Note) ? null : model.Note.Trim();
+
+        var supply = await _context.MedicalSupplies
+            .FirstOrDefaultAsync(item => item.SupplyId == model.SupplyId && item.IsDeleted != true);
+
+        if (supply == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy vật tư cần nhập kho.";
+            return RedirectToAction(nameof(Inventory));
+        }
+
+        model.SupplyName = supply.SupplyName;
+        model.Unit = supply.Unit;
+        model.CurrentStock = supply.StockQuantity ?? 0;
+
+        if ((long)model.CurrentStock + model.Quantity > int.MaxValue)
+        {
+            ModelState.AddModelError(nameof(model.Quantity), "Số lượng sau khi nhập vượt quá giới hạn lưu trữ.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return View("SupplyImport", model);
+        }
+
+        await _inventoryBusiness.ImportSupplyAsync(
+            supply,
+            model.Quantity,
+            HttpContext.Session.GetEmployeeId(),
+            model.Note);
+
+        TempData["AdminSuccess"] = $"Đã nhập {model.Quantity:N0} {supply.Unit} {supply.SupplyName} vào kho.";
+        return RedirectToAction(nameof(Inventory));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> InventoryQuotas()
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var model = new AdminInventoryQuotasViewModel();
+
+        await LoadInventoryQuotaListsAsync(model);
+
+        model.ServiceId = model.Services.FirstOrDefault()?.ServiceId ?? 0;
+        model.SupplyId = model.Supplies.FirstOrDefault()?.SupplyId ?? 0;
+
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveInventoryQuota(AdminInventoryQuotasViewModel model)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        if (!await _context.ServiceCatalogs.AnyAsync(service =>
+            service.ServiceId == model.ServiceId &&
+            service.IsDeleted != true))
+        {
+            ModelState.AddModelError(nameof(model.ServiceId), "Dịch vụ không tồn tại.");
+        }
+
+        if (!await _context.MedicalSupplies.AnyAsync(supply =>
+            supply.SupplyId == model.SupplyId &&
+            supply.IsDeleted != true))
+        {
+            ModelState.AddModelError(nameof(model.SupplyId), "Vật tư không tồn tại.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            await LoadInventoryQuotaListsAsync(model);
+            return View("InventoryQuotas", model);
+        }
+
+        var quota = await _context.ServiceMaterialQuota
+            .FirstOrDefaultAsync(item =>
+                item.ServiceId == model.ServiceId &&
+                item.SupplyId == model.SupplyId);
+
+        if (quota == null)
+        {
+            _context.ServiceMaterialQuota.Add(new ServiceMaterialQuotum
+            {
+                ServiceId = model.ServiceId,
+                SupplyId = model.SupplyId,
+                QuantityUsed = model.QuantityUsed
+            });
+        }
+        else
+        {
+            quota.QuantityUsed = model.QuantityUsed;
+        }
+
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = "Đã lưu định mức vật tư cho dịch vụ.";
         return RedirectToAction(nameof(InventoryQuotas));
     }
 
-    _context.ServiceMaterialQuota.Remove(quota);
-
-    await _context.SaveChangesAsync();
-
-    TempData["AdminSuccess"] = "Đã xóa định mức. Lịch hoàn thành sau thời điểm này sẽ không xuất vật tư này.";
-    return RedirectToAction(nameof(InventoryQuotas));
-}
-
-    public IActionResult Employees(string? search, int? roleId, string? status)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteInventoryQuota(int serviceId, int supplyId)
     {
-        var all = store.Employees;
-        var filtered = all.Where(employee =>
-                (string.IsNullOrWhiteSpace(search) || employee.FullName.Contains(search, StringComparison.OrdinalIgnoreCase) || employee.PhoneNumber.Contains(search)) &&
-                (!roleId.HasValue || employee.RoleId == roleId) &&
-                (string.IsNullOrWhiteSpace(status) || (status == "Active" ? employee.IsActive == true : employee.IsActive != true)))
-            .ToList();
-        return View(new AdminEmployeesViewModel { Search = search, RoleId = roleId, Status = status, TotalCount = all.Count, ActiveCount = all.Count(employee => employee.IsActive == true), InactiveCount = all.Count(employee => employee.IsActive != true), AssignedUpcomingCount = 2, Employees = filtered, Roles = store.Roles.Where(role => role.RoleId != 1).ToList() });
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var quota = await _context.ServiceMaterialQuota
+            .FirstOrDefaultAsync(item => item.ServiceId == serviceId && item.SupplyId == supplyId);
+
+        if (quota == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy định mức vật tư cần xóa.";
+            return RedirectToAction(nameof(InventoryQuotas));
+        }
+
+        _context.ServiceMaterialQuota.Remove(quota);
+
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = "Đã xóa định mức. Lịch hoàn thành sau thời điểm này sẽ không xuất vật tư này.";
+        return RedirectToAction(nameof(InventoryQuotas));
     }
 
-    public IActionResult CreateEmployee() => View("EmployeeForm", EmployeeEditor(null));
+    [HttpGet]
+    public async Task<IActionResult> Employees(string? search, int? roleId, string? status)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
 
-    public IActionResult EditEmployee(int id) => View("EmployeeForm", EmployeeEditor(store.Employees.FirstOrDefault(employee => employee.EmployeeId == id)));
+        var staff = _context.Employees
+            .Where(employee =>
+                employee.RoleId != AdminRoleId &&
+                employee.RoleId != CustomerRoleId &&
+                employee.IsDeleted != true);
+
+        var query = _context.Employees
+            .Include(employee => employee.Role)
+            .Include(employee => employee.Account)
+            .Include(employee => employee.BookingDetailEmployees)
+                .ThenInclude(assignment => assignment.BookingDetail)
+                .ThenInclude(detail => detail.Booking)
+            .Where(employee =>
+                employee.RoleId != AdminRoleId &&
+                employee.RoleId != CustomerRoleId &&
+                employee.IsDeleted != true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim();
+            query = query.Where(employee =>
+                employee.FullName.Contains(keyword) ||
+                employee.PhoneNumber.Contains(keyword) ||
+                employee.Role.RoleName.Contains(keyword));
+        }
+
+        if (roleId.HasValue)
+        {
+            query = query.Where(employee => employee.RoleId == roleId.Value);
+        }
+
+        if (string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase))
+        {
+            status = "Active";
+            query = query.Where(employee => employee.IsActive == true);
+        }
+        else if (string.Equals(status, "Inactive", StringComparison.OrdinalIgnoreCase))
+        {
+            status = "Inactive";
+            query = query.Where(employee => employee.IsActive != true);
+        }
+        else
+        {
+            status = null;
+        }
+
+        var now = DateTime.Now;
+        var model = new AdminEmployeesViewModel
+        {
+            Search = search,
+            RoleId = roleId,
+            Status = status,
+            TotalCount = await staff.CountAsync(),
+            ActiveCount = await staff.CountAsync(employee => employee.IsActive == true),
+            InactiveCount = await staff.CountAsync(employee => employee.IsActive != true),
+            AssignedUpcomingCount = await _context.BookingDetailEmployees.CountAsync(assignment =>
+                assignment.Employee.RoleId != AdminRoleId &&
+                assignment.Employee.RoleId != CustomerRoleId &&
+                assignment.Employee.IsDeleted != true &&
+                assignment.BookingDetail.Booking.IsDeleted != true &&
+                ((assignment.BookingDetail.Booking.BookingDate >= now &&
+                  (assignment.BookingDetail.Booking.StatusId == BookingStatusPending ||
+                   assignment.BookingDetail.Booking.StatusId == BookingStatusConfirmed)) ||
+                 assignment.BookingDetail.Booking.StatusId == BookingStatusInProgress)),
+            Employees = await query
+                .OrderBy(employee => employee.FullName)
+                .ToListAsync(),
+            Roles = await LoadStaffRolesAsync()
+        };
+
+        return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> CreateEmployee()
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var model = new AdminEmployeeEditorViewModel
+        {
+            IsActive = true,
+            Roles = await LoadStaffRolesAsync()
+        };
+        model.RoleId = model.Roles.FirstOrDefault()?.RoleId ?? 0;
+
+        return View("EmployeeForm", model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EditEmployee(int id)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var employee = await _context.Employees
+            .Include(item => item.Account)
+            .Include(item => item.BookingDetailEmployees)
+                .ThenInclude(assignment => assignment.BookingDetail)
+                .ThenInclude(detail => detail.Booking)
+            .FirstOrDefaultAsync(item =>
+                item.EmployeeId == id &&
+                item.RoleId != AdminRoleId &&
+                item.RoleId != CustomerRoleId &&
+                item.IsDeleted != true);
+
+        if (employee == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy nhân viên cần sửa.";
+            return RedirectToAction(nameof(Employees));
+        }
+
+        var now = DateTime.Now;
+        return View("EmployeeForm", new AdminEmployeeEditorViewModel
+        {
+            EmployeeId = employee.EmployeeId,
+            FullName = employee.FullName,
+            PhoneNumber = employee.PhoneNumber,
+            RoleId = employee.RoleId,
+            IsActive = employee.IsActive == true,
+            HasAccount = employee.AccountId.HasValue,
+            Username = employee.Account?.Username,
+            AssignmentCount = employee.BookingDetailEmployees.Count,
+            UpcomingAssignmentCount = employee.BookingDetailEmployees.Count(assignment =>
+                assignment.BookingDetail.Booking.IsDeleted != true &&
+                ((assignment.BookingDetail.Booking.BookingDate >= now &&
+                  (assignment.BookingDetail.Booking.StatusId == BookingStatusPending ||
+                   assignment.BookingDetail.Booking.StatusId == BookingStatusConfirmed)) ||
+                 assignment.BookingDetail.Booking.StatusId == BookingStatusInProgress)),
+            Roles = await LoadStaffRolesAsync()
+        });
+    }
 
     [HttpPost]
-    public IActionResult SaveEmployee() => DemoRedirect(nameof(Employees), "Hồ sơ nhân viên đã được lưu trong bản trình diễn.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveEmployee(AdminEmployeeEditorViewModel model)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        model.FullName = model.FullName?.Trim() ?? string.Empty;
+        model.PhoneNumber = model.PhoneNumber?.Trim() ?? string.Empty;
+
+        if (!await _context.Roles.AnyAsync(role =>
+            role.RoleId == model.RoleId &&
+            role.RoleId != AdminRoleId &&
+            role.RoleId != CustomerRoleId))
+        {
+            ModelState.AddModelError(nameof(model.RoleId), "Vai trò nhân viên không hợp lệ.");
+        }
+
+        var employeeId = model.EmployeeId ?? 0;
+        if (!string.IsNullOrWhiteSpace(model.PhoneNumber) &&
+            await _context.Employees.AnyAsync(employee =>
+                employee.EmployeeId != employeeId &&
+                employee.PhoneNumber == model.PhoneNumber &&
+                employee.IsDeleted != true))
+        {
+            ModelState.AddModelError(nameof(model.PhoneNumber), "Số điện thoại đã được sử dụng cho nhân viên khác.");
+        }
+
+        Employee? employee = null;
+        if (model.EmployeeId.HasValue)
+        {
+            employee = await _context.Employees
+                .Include(item => item.Account)
+                .Include(item => item.BookingDetailEmployees)
+                    .ThenInclude(assignment => assignment.BookingDetail)
+                    .ThenInclude(detail => detail.Booking)
+                .FirstOrDefaultAsync(item =>
+                    item.EmployeeId == model.EmployeeId.Value &&
+                    item.RoleId != AdminRoleId &&
+                    item.RoleId != CustomerRoleId &&
+                    item.IsDeleted != true);
+
+            if (employee == null)
+            {
+                TempData["AdminError"] = "Không tìm thấy nhân viên cần sửa.";
+                return RedirectToAction(nameof(Employees));
+            }
+
+            var now = DateTime.Now;
+            model.HasAccount = employee.AccountId.HasValue;
+            model.Username = employee.Account?.Username;
+            model.AssignmentCount = employee.BookingDetailEmployees.Count;
+            model.UpcomingAssignmentCount = employee.BookingDetailEmployees.Count(assignment =>
+                assignment.BookingDetail.Booking.IsDeleted != true &&
+                ((assignment.BookingDetail.Booking.BookingDate >= now &&
+                  (assignment.BookingDetail.Booking.StatusId == BookingStatusPending ||
+                   assignment.BookingDetail.Booking.StatusId == BookingStatusConfirmed)) ||
+                 assignment.BookingDetail.Booking.StatusId == BookingStatusInProgress));
+
+            if (!model.IsActive && employee.IsActive == true && model.UpcomingAssignmentCount > 0)
+            {
+                ModelState.AddModelError(nameof(model.IsActive), "Nhân viên đang phụ trách lịch sắp tới nên chưa thể tạm ngừng.");
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            model.Roles = await LoadStaffRolesAsync();
+            return View("EmployeeForm", model);
+        }
+
+        if (employee == null)
+        {
+            employee = new Employee
+            {
+                RoleId = model.RoleId,
+                FullName = model.FullName,
+                PhoneNumber = model.PhoneNumber,
+                IsActive = model.IsActive,
+                IsDeleted = false
+            };
+            _context.Employees.Add(employee);
+        }
+        else
+        {
+            employee.RoleId = model.RoleId;
+            employee.FullName = model.FullName;
+            employee.PhoneNumber = model.PhoneNumber;
+            employee.IsActive = model.IsActive;
+
+            if (employee.Account != null)
+            {
+                employee.Account.RoleId = model.RoleId;
+                employee.Account.IsActive = model.IsActive;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = model.IsEditing
+            ? "Đã cập nhật thông tin nhân viên."
+            : "Đã thêm nhân viên mới để phân công lịch hẹn.";
+
+        return RedirectToAction(nameof(Employees));
+    }
 
     [HttpPost]
-    public IActionResult ToggleEmployeeStatus() => DemoRedirect(nameof(Employees), "Trạng thái nhân viên đã được mô phỏng.");
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleEmployeeStatus(int employeeId)
+    {
+        var accessRedirect = GetAdminAccessRedirect();
+        if (accessRedirect != null)
+        {
+            return accessRedirect;
+        }
+
+        var employee = await _context.Employees
+            .Include(item => item.Account)
+            .FirstOrDefaultAsync(item =>
+                item.EmployeeId == employeeId &&
+                item.RoleId != AdminRoleId &&
+                item.RoleId != CustomerRoleId &&
+                item.IsDeleted != true);
+
+        if (employee == null)
+        {
+            TempData["AdminError"] = "Không tìm thấy nhân viên cần cập nhật.";
+            return RedirectToAction(nameof(Employees));
+        }
+
+        var wasActive = employee.IsActive == true;
+        if (wasActive && await _context.BookingDetailEmployees.AnyAsync(assignment =>
+            assignment.EmployeeId == employeeId &&
+            assignment.BookingDetail.Booking.IsDeleted != true &&
+            ((assignment.BookingDetail.Booking.BookingDate >= DateTime.Now &&
+              (assignment.BookingDetail.Booking.StatusId == BookingStatusPending ||
+               assignment.BookingDetail.Booking.StatusId == BookingStatusConfirmed)) ||
+             assignment.BookingDetail.Booking.StatusId == BookingStatusInProgress)))
+        {
+            TempData["AdminError"] = "Nhân viên đang phụ trách lịch sắp tới nên chưa thể tạm ngừng.";
+            return RedirectToAction(nameof(Employees));
+        }
+
+        employee.IsActive = !wasActive;
+        if (employee.Account != null)
+        {
+            employee.Account.IsActive = !wasActive;
+        }
+
+        await _context.SaveChangesAsync();
+
+        TempData["AdminSuccess"] = wasActive
+            ? "Đã tạm ngừng nhân viên khỏi danh sách phân công."
+            : "Đã kích hoạt lại nhân viên.";
+
+        return RedirectToAction(nameof(Employees));
+    }
 
     [HttpGet]
     public async Task<IActionResult> Promotions(string? search, string? status)
@@ -2246,22 +2535,16 @@ public async Task<IActionResult> DeleteInventoryQuota(int serviceId, int supplyI
             .ToListAsync();
     }
 
+    private Task<List<Role>> LoadStaffRolesAsync()
+    {
+        return _context.Roles
+            .Where(role => role.RoleId != AdminRoleId && role.RoleId != CustomerRoleId)
+            .OrderBy(role => role.RoleName)
+            .ToListAsync();
+    }
+
     [HttpPost]
     public IActionResult UpdateContactStatus() => DemoRedirect(nameof(Contacts), "Liên hệ đã được xử lý trong bản trình diễn.");
-
-    private AdminEmployeeEditorViewModel EmployeeEditor(Employee? employee) => new()
-    {
-        EmployeeId = employee?.EmployeeId,
-        FullName = employee?.FullName ?? string.Empty,
-        PhoneNumber = employee?.PhoneNumber ?? string.Empty,
-        RoleId = employee?.RoleId ?? 3,
-        IsActive = employee?.IsActive ?? true,
-        HasAccount = employee?.Account != null,
-        Username = employee?.Account?.Username,
-        AssignmentCount = employee?.BookingDetailEmployees.Count ?? 0,
-        UpcomingAssignmentCount = 1,
-        Roles = store.Roles.Where(role => role.RoleId != 1).ToList()
-    };
 
     private AdminPetEditorViewModel PetEditor(Pet? pet, Customer customer) => new()
     {
