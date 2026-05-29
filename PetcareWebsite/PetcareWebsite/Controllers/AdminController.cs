@@ -2158,16 +2158,6 @@ namespace PetcareWebsite.Controllers
             await LoadBookingEditorListsAsync(model);
             return View("BookingForm", model);
         }
-        if (nextStatusId == BookingStatusCompleted)
-        {
-            var stockValidation = await _inventoryBusiness.ValidateCompletionAsync(booking.BookingDetails.ToList());
-            if (!stockValidation.Succeeded)
-            {
-                TempData["AdminError"] = stockValidation.ErrorMessage;
-                return RedirectToAction(nameof(Bookings));
-            }
-        }
-
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SaveBooking(AdminBookingEditorViewModel model)
