@@ -1,0 +1,61 @@
+@model PetcareWebsite.ViewModels.AdminSupplyImportViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Inventory";
+    ViewData["AdminTitle"] = "Nhập kho vật tư";
+    ViewData["AdminSubtitle"] = "Ghi nhận hàng nhập và cập nhật tồn kho theo giao dịch.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/supplyimport.css" asp-append-version="true" />
+}
+
+<div class="import-shell">
+    <div class="admin-panel form-panel">
+        <h3 class="form-title">Phiếu nhập kho</h3>
+        <div class="selected-supply">
+            @Model.SupplyName
+            <small>Đơn vị: @Model.Unit</small>
+        </div>
+
+        <form method="post" action="@Url.Action("ImportSupply", "Admin")">
+            @Html.AntiForgeryToken()
+            <input asp-for="SupplyId" type="hidden">
+            <div asp-validation-summary="ModelOnly"></div>
+
+            <div class="row g-4">
+                <div class="col-md-5">
+                    <label class="form-label" asp-for="Quantity">Số lượng nhập (@Model.Unit)</label>
+                    <input class="form-control" asp-for="Quantity" type="number" min="1" max="1000000" step="1">
+                    <span asp-validation-for="Quantity"></span>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" asp-for="Note">Ghi chú phiếu nhập</label>
+                    <textarea class="form-control" asp-for="Note" maxlength="255" placeholder="Nguồn nhập, lô hàng hoặc thông tin cần lưu ý..."></textarea>
+                    <span asp-validation-for="Note"></span>
+                </div>
+            </div>
+
+            <div class="actions">
+                <a class="btn-cancel" href="@Url.Action("Inventory", "Admin")">Hủy</a>
+                <button class="btn-save" type="submit"><i class="fas fa-arrow-down"></i> Xác nhận nhập kho</button>
+            </div>
+        </form>
+    </div>
+
+    <aside class="admin-panel side-box">
+        <h3>Tồn kho dự kiến</h3>
+        <div class="metric-line">
+            <span>Đang có</span>
+            <strong>@Model.CurrentStock.ToString("N0") @Model.Unit</strong>
+        </div>
+        <div class="rule-note">
+            Khi xác nhận, hệ thống tăng tồn kho và tạo một giao dịch nhập có thời gian, người thực hiện và ghi chú.
+        </div>
+    </aside>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

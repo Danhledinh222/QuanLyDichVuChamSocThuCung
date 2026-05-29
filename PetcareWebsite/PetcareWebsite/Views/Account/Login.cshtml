@@ -1,0 +1,73 @@
+@{
+    Layout = null; // Trang đăng nhập độc lập không dùng chung Header/Footer trang chủ
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập | PetCare</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="~/css/pages/account/login.css" asp-append-version="true" />
+</head>
+<body>
+
+    <div class="login-wrapper">
+        <div class="login-left">
+            <div class="left-text">
+                <h2>Chăm sóc thú cưng của bạn dễ dàng hơn</h2>
+                <p>Quản lý lịch trình, theo dõi sức khỏe và yêu thương người bạn bốn chân mỗi ngày.</p>
+            </div>
+            <div class="left-image"></div>
+        </div>
+
+        <div class="login-right">
+            <div class="form-header">
+                <h3>Đăng nhập</h3>
+                <p>Chào mừng bạn quay lại</p>
+            </div>
+
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="login-success">
+                    <i class="fas fa-check-circle me-2"></i> @TempData["SuccessMessage"]
+                </div>
+            }
+
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert-error">
+                    <i class="fas fa-exclamation-triangle me-2"></i> @TempData["ErrorMessage"]
+                </div>
+            }
+
+            <form asp-action="Login" asp-controller="Account" method="POST">
+                <div class="input-group">
+                    <label>Tài khoản (SĐT/Email)</label>
+                    <input type="text" name="username" placeholder="Nhập email hoặc số điện thoại" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Mật khẩu</label>
+                    <input type="password" name="password" placeholder="Nhập mật khẩu" required>
+                </div>
+
+                <div class="form-options">
+                    <label class="remember-option"><input type="checkbox" checked> Ghi nhớ tôi</label>
+                    <a href="@Url.Action("ForgotPassWord", "Account")" class="forgot-link">Quên mật khẩu?</a>
+                </div>
+
+                <button type="submit" class="btn-submit">Đăng nhập ngay</button>
+            </form>
+
+            <div class="form-footer login-footer">
+                Chưa có tài khoản? <a class="register-link" href="@Url.Action("Register", "Account")">Đăng ký ngay</a>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

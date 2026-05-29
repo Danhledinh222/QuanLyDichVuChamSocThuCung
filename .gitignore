@@ -427,3 +427,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+**/.keys/
+**/bin/
+**/obj/
+.vs/

@@ -1,0 +1,138 @@
+@{
+    ViewData["Title"] = "Liên hệ";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/home/contact.css" asp-append-version="true" />
+}
+
+<div class="contact-page">
+    <section class="contact-hero">
+        <div class="container">
+            <h1>Liên hệ PetCare</h1>
+            <p>Đội ngũ PetCare hỗ trợ tư vấn dịch vụ, lịch hẹn, thanh toán và các yêu cầu chăm sóc riêng cho từng bé thú cưng.</p>
+            <div class="hero-actions">
+                <a class="hero-action primary" href="@Url.Action("Index", "Booking")">
+                    <i class="far fa-calendar-check"></i> Đặt lịch ngay
+                </a>
+                <a class="hero-action secondary" href="tel:0901234567">
+                    <i class="fas fa-phone-alt"></i> 0901 234 567
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="contact-shell">
+        <div class="container">
+            <div class="row g-4 g-lg-5 align-items-start">
+                <div class="col-lg-5">
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-icon"><i class="fas fa-location-dot"></i></div>
+                            <h3>Địa chỉ</h3>
+                            <p>123 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh</p>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-icon"><i class="fas fa-phone-alt"></i></div>
+                            <h3>Điện thoại</h3>
+                            <a href="tel:0901234567">0901 234 567</a>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-icon"><i class="fas fa-envelope"></i></div>
+                            <h3>Email</h3>
+                            <a href="mailto:hello@petcare.vn">hello@petcare.vn</a>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-icon"><i class="fas fa-comment-dots"></i></div>
+                            <h3>Hỗ trợ nhanh</h3>
+                            <p>Tư vấn dịch vụ, đổi lịch, hỏi hóa đơn và trạng thái lịch hẹn.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-7">
+                    <div class="contact-form-panel">
+                        <h2 class="form-title">Gửi thông tin tư vấn</h2>
+                        <p class="form-copy">Điền thông tin cần tư vấn, PetCare sẽ liên hệ lại theo số điện thoại bạn cung cấp.</p>
+
+                        @if (TempData["ContactSuccess"] != null)
+                        {
+                            <div class="alert-soft success">
+                                <i class="fas fa-check-circle me-2"></i>@TempData["ContactSuccess"]
+                            </div>
+                        }
+
+                        @if (TempData["ContactError"] != null)
+                        {
+                            <div class="alert-soft error">
+                                <i class="fas fa-triangle-exclamation me-2"></i>@TempData["ContactError"]
+                            </div>
+                        }
+
+                        <form method="post" action="@Url.Action("SendContact", "Home")">
+                            @Html.AntiForgeryToken()
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="fullName">Họ tên</label>
+                                    <input class="form-control" id="fullName" name="fullName" type="text" placeholder="Nguyễn Văn A" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="phoneNumber">Số điện thoại</label>
+                                    <input class="form-control" id="phoneNumber" name="phoneNumber" type="tel" placeholder="0901 234 567" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="email">Email</label>
+                                    <input class="form-control" id="email" name="email" type="email" placeholder="email@example.com">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="topic">Nội dung cần hỗ trợ</label>
+                                    <select class="form-select" id="topic" name="topic">
+                                        <option value="Tư vấn dịch vụ">Tư vấn dịch vụ</option>
+                                        <option value="Đổi lịch hẹn">Đổi lịch hẹn</option>
+                                        <option value="Thanh toán">Thanh toán</option>
+                                        <option value="Góp ý dịch vụ">Góp ý dịch vụ</option>
+                                        <option value="Khác">Khác</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="message">Nội dung</label>
+                                    <textarea class="form-control" id="message" name="message" placeholder="Bạn cần PetCare hỗ trợ điều gì?" required></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <button class="submit-btn" type="submit">
+                                        Gửi liên hệ <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="visit-band">
+        <div class="container">
+            <div class="visit-layout">
+                <div>
+                    <h2>Ghé cửa hàng khi cần tư vấn trực tiếp</h2>
+                    <p>Khách có thể mang thú cưng đến để nhân viên kiểm tra tình trạng lông, da, cân nặng và tư vấn gói chăm sóc phù hợp trước khi đặt lịch.</p>
+                </div>
+                <div class="hours-box">
+                    <div class="hour-row">
+                        <span>Thứ 2 - Thứ 6</span>
+                        <span>08:00 - 20:00</span>
+                    </div>
+                    <div class="hour-row">
+                        <span>Thứ 7</span>
+                        <span>08:00 - 18:00</span>
+                    </div>
+                    <div class="hour-row">
+                        <span>Chủ nhật</span>
+                        <span>09:00 - 17:00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>

@@ -1,0 +1,113 @@
+@model PetcareWebsite.ViewModels.AdminServicesViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Services";
+    ViewData["AdminTitle"] = "Quản lý dịch vụ";
+    ViewData["AdminSubtitle"] = "Cập nhật bảng giá, thời lượng, sức chứa và trạng thái nhận đặt lịch.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/services.css" asp-append-version="true" />
+}
+
+<div class="page-command">
+    <a class="btn-create" href="@Url.Action("CreateService", "Admin")">
+        <i class="fas fa-plus"></i> Thêm dịch vụ mới
+    </a>
+</div>
+
+<div class="service-summary">
+    <a class="admin-panel summary-item" href="@Url.Action("Services", "Admin")">
+        <span>Tất cả dịch vụ</span><strong>@Model.TotalCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Services", "Admin", new { status = "Active" })">
+        <span>Đang nhận lịch</span><strong>@Model.ActiveCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Services", "Admin", new { status = "Inactive" })">
+        <span>Tạm ngừng nhận lịch</span><strong>@Model.InactiveCount</strong>
+    </a>
+</div>
+
+<div class="admin-panel">
+    <form method="get" action="@Url.Action("Services", "Admin")" class="filter-bar">
+        <input class="form-control" type="search" name="search" value="@Model.Search" placeholder="Tìm tên hoặc mô tả dịch vụ">
+        <select class="form-select service-category-filter" name="categoryId">
+            <option value="">Tất cả danh mục</option>
+            @foreach (var category in Model.Categories)
+            {
+                <option value="@category.CategoryId" selected="@(Model.CategoryId == category.CategoryId ? "selected" : null)">@category.CategoryName</option>
+            }
+        </select>
+        <select class="form-select service-status-filter" name="status">
+            <option value="">Tất cả trạng thái</option>
+            <option value="Active" selected="@(Model.Status == "Active" ? "selected" : null)">Đang nhận lịch</option>
+            <option value="Inactive" selected="@(Model.Status == "Inactive" ? "selected" : null)">Tạm ngừng</option>
+        </select>
+        <button class="btn-filter" type="submit"><i class="fas fa-magnifying-glass me-2"></i>Lọc</button>
+        <a class="clear-link" href="@Url.Action("Services", "Admin")">Xóa lọc</a>
+    </form>
+
+    @if (!Model.Services.Any())
+    {
+        <div class="empty-state">
+            <i class="fas fa-scissors fs-2 mb-3 d-block"></i>
+            Không có dịch vụ phù hợp.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table service-table">
+                <thead>
+                    <tr>
+                        <th>Dịch vụ</th>
+                        <th>Danh mục</th>
+                        <th>Đơn giá</th>
+                        <th>Thời lượng</th>
+                        <th>Sức chứa</th>
+                        <th>Lịch đã tạo</th>
+                        <th>Trạng thái</th>
+                        <th>Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var service in Model.Services)
+                    {
+                        var isActive = service.IsActive == true;
+                        <tr>
+                            <td>
+                                <div class="service-name">@service.ServiceName</div>
+                                <div class="muted-line">#@service.ServiceId</div>
+                            </td>
+                            <td>@service.Category.CategoryName</td>
+                            <td><span class="price">@service.BasePrice.ToString("N0") đ</span></td>
+                            <td>@(service.EstimatedDuration.HasValue ? $"{service.EstimatedDuration} phút" : "Chưa thiết lập")</td>
+                            <td>@service.MaxCapacity thú cưng / giờ</td>
+                            <td>@service.BookingDetails.Count lịch</td>
+                            <td>
+                                <span class="availability @(isActive ? "available" : "paused")">
+                                    @(isActive ? "Đang nhận lịch" : "Tạm ngừng")
+                                </span>
+                            </td>
+                            <td>
+                                <div class="actions">
+                                    <a class="action-link" href="@Url.Action("EditService", "Admin", new { id = service.ServiceId })">
+                                        <i class="far fa-pen-to-square"></i> Sửa
+                                    </a>
+                                    <form method="post" action="@Url.Action("ToggleServiceStatus", "Admin")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="serviceId" value="@service.ServiceId">
+                                        <button class="toggle-button @(isActive ? "pause" : "resume")" type="submit">
+                                            @(isActive ? "Tạm ngừng" : "Mở lại")
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

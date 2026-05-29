@@ -1,0 +1,207 @@
+.booking-header-minimal {
+            padding: 140px 0 40px;
+            text-align: center;
+        }
+
+            .booking-header-minimal h2 {
+                font-weight: 800;
+                font-size: 2.5rem;
+                letter-spacing: -0.5px;
+            }
+
+        .booking-steps {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #9ca3af;
+            font-weight: 700;
+        }
+
+            .step.completed {
+                color: var(--dark-charcoal);
+            }
+
+            .step.active {
+                color: var(--primary-green);
+            }
+
+        .step-num {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .step.completed .step-num {
+            background: var(--dark-charcoal);
+            color: white;
+        }
+
+        .step.active .step-num {
+            background: var(--primary-green);
+            color: white;
+            box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.2);
+        }
+
+        .booking-container {
+            margin-top: -10px;
+            padding-bottom: 100px;
+        }
+
+        .booking-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 50px;
+            box-shadow: var(--soft-shadow);
+            border: 1px solid rgba(0, 0, 0, 0.03);
+        }
+
+        .date-picker-wrapper {
+            position: relative;
+        }
+
+        .form-control-date {
+            padding: 18px 20px;
+            border-radius: 16px;
+            border: 2px solid #e5e7eb;
+            background-color: #f9fafb;
+            font-weight: 700;
+            color: var(--dark-charcoal);
+            font-size: 1.1rem;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+            .form-control-date:focus {
+                border-color: var(--primary-green);
+                background-color: #fff;
+                box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+                outline: none;
+            }
+
+        .time-section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 800;
+            color: var(--dark-charcoal);
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            margin-top: 30px;
+        }
+
+        .time-slot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .time-slot {
+            position: relative;
+            border: 2px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 16px 0;
+            text-align: center;
+            font-weight: 700;
+            color: var(--dark-charcoal);
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .time-slot-text {
+            font-size: 1.05rem;
+        }
+
+        .time-slot-sub {
+            font-size: 0.75rem;
+            font-weight: 600;
+            opacity: 0;
+            transform: translateY(5px);
+            transition: all 0.2s;
+            height: 0;
+            overflow: hidden;
+            margin: 0;
+        }
+
+        .time-slot:hover:not(.disabled) {
+            border-color: #cbd5e1;
+            background: #f8fafc;
+            transform: translateY(-2px);
+        }
+
+        .time-slot.active {
+            border-color: var(--primary-green);
+            background: var(--primary-green);
+            color: white;
+            box-shadow: 0 8px 15px rgba(16, 185, 129, 0.2);
+        }
+
+            .time-slot.active .time-slot-sub {
+                opacity: 1;
+                transform: translateY(0);
+                color: white;
+                height: auto;
+                margin-top: 2px;
+            }
+
+        /* Trạng thái Kín Chỗ */
+        .time-slot.disabled {
+            border-color: #f3f4f6;
+            background: #f9fafb;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+            .time-slot.disabled .time-slot-text {
+                text-decoration: line-through;
+            }
+
+            .time-slot.disabled::after {
+                content: attr(data-disabled-label);
+                display: block;
+                font-size: 0.75rem;
+                color: #ef4444;
+                font-weight: 800;
+                margin-top: 4px;
+            }
+
+            .time-slot.past::after {
+                color: #6b7280;
+            }
+
+        @media (max-width: 768px) {
+            .booking-card {
+                padding: 30px 20px;
+            }
+        }
+.booking-spinner {
+    display: none;
+    position: absolute;
+    right: -40px;
+    top: 15px;
+}
+
+.btn-return {
+    border: 2px solid #e5e7eb;
+    border-radius: 50px;
+}

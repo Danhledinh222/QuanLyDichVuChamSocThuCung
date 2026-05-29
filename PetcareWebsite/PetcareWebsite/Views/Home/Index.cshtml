@@ -1,8 +1,478 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+@model IEnumerable<PetcareWebsite.Models.ServiceCatalog>
+@{
+    ViewData["Title"] = "Trang Chủ";
+
+    string[] icons = { "fa-cut", "fa-stethoscope", "fa-spa", "fa-hotel" };
+    string[] tags = { "tag-popular", "tag-vet", "tag-premium", "tag-hotel" };
+    string[] tagTexts = { "Phổ biến nhất", "Bác sĩ thú y", "Cao cấp", "Chăm sóc 24/7" };
+    string[] images = {
+        "/images/pets/pet-care.jpg",
+        "/images/services/catalog-2.jpg",
+        "/images/pets/cat-alt.jpg",
+        "/images/services/catalog-4.jpg"
+    };
+    int counter = 0;
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/home/index.css" asp-append-version="true" />
+}
+
+<section class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <span class="hero-badge"><i class="fas fa-circle text-green badge-dot"></i> Đang nhận khách hàng mới</span>
+                <h1 class="hero-headline">Chăm sóc cao cấp  <br><span class="text-green">Thú cưng của bạn</span></h1>
+                <p class="hero-subtitle">Dịch vụ cắt tỉa lông, spa và chăm sóc sức khỏe chuyên nghiệp giúp thú cưng của bạn luôn vui vẻ, khỏe mạnh và có ngoại hình đẹp nhất.</p>
+
+                <div class="d-flex flex-wrap align-items-center gap-3">
+                    <a href="#services" class="btn btn-primary">Đặt dịch vụ</a>
+                    <a href="#services" class="btn btn-link text-dark fw-bold text-decoration-none">
+                        <i class="far fa-play-circle fs-5 me-2 align-middle"></i> Khám phá dịch vụ
+                    </a>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <h4>500+</h4><p>Thú cưng hài lòng</p>
+                    </div>
+                    <div class="stat-item">
+                        <h4>10+</h4><p>Năm kinh nghiệm</p>
+                    </div>
+                    <div class="stat-item">
+                        <h4>4.9<i class="fas fa-star text-dark ms-1 rating-star-small"></i></h4><p>Đánh giá khách hàng</p>
+                    </div>
+                    <div class="stat-item">
+                        <h4>24/7</h4><p>Hỗ trợ</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="hero-visual">
+                    <div class="tag-pet-spa"><i class="fas fa-spa"></i> Spa Thú cưng</div>
+                    <img src="~/images/hero/service-spa.jpg" class="img-main" alt="Chăm sóc thú cưng chuyên nghiệp">
+
+                    <div class="card-clinic">
+                        <div class="label"><i class="fas fa-stethoscope me-1 text-primary"></i> Phòng khám</div>
+                        <img src="~/images/pets/dog-friends.jpg" alt="Chó bông">
+                    </div>
+
+                    <div class="card-grooming">
+                        <img src="~/images/pets/cat.jpg" alt="Mèo">
+                        <span><i class="fas fa-cut"></i> Cắt tỉa lông</span>
+                    </div>
+
+                    <div class="card-rating">
+                        <img src="~/images/pets/dog-golden.jpg" alt="Chó Golden Retriever">
+                        <div class="rating-info">
+                            <div class="d-flex align-items-baseline gap-2">
+                                <h4>4.9</h4>
+                                <div class="stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+                            </div>
+                            <small>500+ đánh giá</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="brands-bar bg-white">
+    <div class="container text-center">
+        <p class="small text-muted mb-4 fw-medium text-uppercase partners-heading">Chứng nhận & Cam kết chất lượng</p>
+        <div class="d-flex flex-wrap justify-content-center align-items-center gap-4 gap-md-5">
+            <div class="partner-badge"><i class="fas fa-award"></i> Spa Hàng Đầu</div>
+            <div class="partner-badge"><i class="fas fa-user-md"></i> Bác Sĩ Thú Y Chứng Nhận</div>
+            <div class="partner-badge"><i class="fas fa-leaf"></i> Sản Phẩm Hữu Cơ</div>
+            <div class="partner-badge"><i class="fas fa-shield-alt"></i> Bảo Hiểm Toàn Diện</div>
+            <div class="partner-badge"><i class="fas fa-heart"></i> Thú Cưng Yêu Thích</div>
+        </div>
+    </div>
 </div>
+
+<section id="services" class="section-padding bg-white">
+    <div class="container text-center">
+        <span class="section-badge">Dịch vụ của chúng tôi</span>
+        <h2 class="fw-800 mb-2 fs-1">Tất cả những gì thú cưng của bạn xứng đáng</h2>
+        <p class="text-muted mb-5 mx-auto content-narrow">Từ cắt tỉa nhanh đến một ngày spa trọn vẹn — chúng tôi cung cấp các gói chăm sóc được thiết kế riêng theo nhu cầu của thú cưng nhà bạn.</p>
+
+        <div class="row g-4 text-start">
+            @foreach (var item in Model.Take(4))
+            {
+                var currentIcon = icons[counter % icons.Length];
+                var currentTagClass = tags[counter % tags.Length];
+                var currentTagText = tagTexts[counter % tagTexts.Length];
+                var currentImg = images[counter % images.Length];
+                counter++;
+
+                <div class="col-md-6 col-lg-3">
+                    <div class="card service-card">
+                        <div class="service-img-wrap">
+                            <span class="service-icon"><i class="fas @currentIcon"></i></span>
+                            <span class="service-tag @currentTagClass">@currentTagText</span>
+                            <img src="@currentImg" alt="@item.ServiceName">
+                        </div>
+                        <div class="card-body d-flex flex-column">
+                            <h5>@item.ServiceName</h5>
+                            <p>Dịch vụ chăm sóc chuyên nghiệp, an toàn, sử dụng thiết bị vô trùng 100%.</p>
+                            <div class="mt-auto">
+                                <div class="service-meta">
+                                    <span class="time"><i class="far fa-clock"></i> Liên hệ</span>
+                                    <span class="price">@item.BasePrice.ToString("N0") đ</span>
+                                </div>
+                                <a href="@Url.Action("Detail", "Service", new { id = item.ServiceId })" class="btn btn-dark-custom w-100 text-center text-decoration-none">Xem chi tiết</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+<section class="section-padding why-us-section">
+    <div class="container text-center">
+        <span class="section-badge border-secondary text-light">Vì sao chọn chúng tôi</span>
+        <h2 class="fw-800 mb-3 fs-1">Xây dựng bằng Niềm tin, Hoạt động vì Tình yêu</h2>
+        <p class="text-light opacity-75 mb-5 mx-auto content-wide">Chúng tôi không chỉ chăm sóc thú cưng — chúng tôi coi chúng như người nhà. Đây là lý do PetCare được hàng ngàn chủ nuôi tin tưởng.</p>
+
+        <div class="row g-4 text-start">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper feature-green">
+                        <i class="fas fa-user-md"></i>
+                    </div>
+                    <h5>Đội ngũ giàu kinh nghiệm</h5>
+                    <p>Các thợ cắt tỉa và bác sĩ thú y của chúng tôi có hơn 10 năm kinh nghiệm thực tế, đảm bảo thú cưng của bạn nhận được sự chăm sóc chuyên nghiệp nhất.</p>
+                    <div class="feature-footer">10+ Năm Kinh nghiệm</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper feature-indigo">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h5>Chăm sóc 24/7</h5>
+                    <p>Thú cưng của bạn không bao giờ phải ở một mình. Đội ngũ tận tâm của chúng tôi theo dõi, cho ăn và hỗ trợ khẩn cấp bất kể ngày đêm.</p>
+                    <div class="feature-footer feature-text-indigo">Sẵn sàng 24/7</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper feature-amber">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h5>Môi trường an toàn</h5>
+                    <p>Cơ sở vật chất được khử trùng hàng ngày và trang bị đầy đủ các biện pháp an toàn để mọi thú cưng đều cảm thấy an tâm và thoải mái.</p>
+                    <div class="feature-footer feature-text-amber">100% An toàn & Được chứng nhận</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper feature-red">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <h5>Cập nhật theo thời gian thực</h5>
+                    <p>Cập nhật tình hình qua hình ảnh và video trong suốt quá trình chăm sóc, giúp bạn luôn biết các bé đang rất vui vẻ.</p>
+                    <div class="feature-footer feature-text-red">Cập nhật Trạng thái Trực tiếp</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper feature-green">
+                        <i class="fas fa-leaf"></i>
+                    </div>
+                    <h5>Sản phẩm tự nhiên</h5>
+                    <p>Chúng tôi chỉ sử dụng các sản phẩm hữu cơ được chứng nhận, không thử nghiệm trên động vật — dịu nhẹ cho da, sạch sâu cho lông.</p>
+                    <div class="feature-footer">100% Công thức Hữu cơ</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper feature-purple">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <h5>Trải nghiệm thoải mái</h5>
+                    <p>Âm nhạc êm dịu, kỹ thuật giảm lo âu và sự nhẹ nhàng giúp mỗi chuyến đi tới spa đều là trải nghiệm tích cực.</p>
+                    <div class="feature-footer feature-text-purple">4.9★ Mức độ Hài lòng</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="pricing" class="section-padding bg-white">
+    <div class="container text-center">
+        <span class="section-badge">Bảng giá dịch vụ</span>
+        <h2 class="fw-800 mb-3 fs-1">Bảng giá Đơn giản, Minh bạch</h2>
+        <p class="text-muted mb-5 max-w-2xl mx-auto">Không phí ẩn, không bất ngờ. Chọn gói phù hợp với lối sống của thú cưng và ngân sách của bạn.</p>
+
+        <div class="pricing-toggle mb-5">
+            <span class="fw-bold">Hàng tháng</span>
+            <div class="form-check form-switch m-0">
+                <input class="form-check-input fs-4 m-0 price-toggle-input" type="checkbox" id="priceToggle">
+            </div>
+            <span class="fw-bold d-flex align-items-center gap-2">Hàng năm <span class="save-badge">Tiết kiệm 20%</span></span>
+        </div>
+
+        <div class="row g-4 text-start justify-content-center">
+            @{
+                // Lấy 3 dịch vụ nổi bật nhất (ví dụ: lấy 3 dịch vụ có giá cao nhất làm gói VIP)
+                var topServices = Model.OrderByDescending(s => s.BasePrice).Take(3).ToList();
+                int priceCounter = 0;
+            }
+
+            @foreach (var item in topServices)
+            {
+                // Logic để thẻ thứ 2 (ở giữa) luôn được nổi bật (class popular)
+                bool isPopular = (priceCounter == 1);
+
+                // Mảng Icon cho 3 thẻ
+                string[] priceIcons = { "fa-paw", "fa-crown", "fa-gem" };
+                string[] priceColors = { "text-muted", "text-warning", "text-info" };
+                string btnClass = isPopular ? "btn-primary" : (priceCounter == 2 ? "btn-warning text-dark" : "btn-dark");
+
+                var icon = priceIcons[priceCounter];
+                var color = priceColors[priceCounter];
+
+                <div class="col-lg-4">
+                    <div class="price-card @(isPopular ? "popular" : "")">
+                        @if (isPopular)
+                        {
+                            <div class="popular-label"><i class="fas fa-star text-warning me-1"></i> Lựa chọn phổ biến nhất</div>
+                        }
+
+                        <h4 class="mb-2"><i class="fas @icon @color me-2"></i> @item.ServiceName</h4>
+                        <p>@item.Description</p>
+
+                        <div class="price-amount pricing-amount-large">
+                            @item.BasePrice.ToString("N0")<span class="pricing-unit">VNĐ/lần</span>
+                        </div>
+
+                        <a href="@Url.Action("Detail", "Service", new { id = item.ServiceId })" class="btn @btnClass w-100 py-3 mb-4 rounded-pill fw-bold">
+                            Bắt đầu ngay
+                        </a>
+
+                        <ul class="list-unstyled price-list m-0">
+                            <li><i class="fas fa-check"></i> Sử dụng sản phẩm hữu cơ an toàn</li>
+                            <li><i class="fas fa-check"></i> Được thực hiện bởi chuyên gia</li>
+                            <li><i class="fas fa-check"></i> Phòng lưu chuồng chờ miễn phí</li>
+                            @if (isPopular || priceCounter == 2)
+                            {
+                                <li><i class="fas fa-check"></i> Ưu tiên đặt lịch hẹn nhanh</li>
+                            }
+                            else
+                            {
+                                <li class="disabled"><i class="fas fa-times"></i> Ưu tiên đặt lịch hẹn nhanh</li>
+                            }
+
+                            @if (priceCounter == 2)
+                            {
+                                <li><i class="fas fa-check"></i> Không gian Spa VIP riêng tư</li>
+                            }
+                            else
+                            {
+                                <li class="disabled"><i class="fas fa-times"></i> Không gian Spa VIP riêng tư</li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+                priceCounter++;
+            }
+        </div>
+        <p class="text-muted mt-5 mb-0 small"><i class="fas fa-shield-alt text-green me-1"></i> Đảm bảo chất lượng 100% · Vui lòng đặt lịch trước khi đến</p>
+    </div>
+</section>
+
+<section class="section-padding bg-light">
+    <div class="container">
+        <div class="text-center mb-5">
+            <span class="section-badge bg-white">Cảm nhận khách hàng</span>
+        </div>
+        <div class="rating-header">
+            <div class="d-flex align-items-center gap-4">
+                <div class="rating-number">4.9</div>
+                <div>
+                    <div class="stars mb-1 rating-stars">
+                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+                    </div>
+                    <p class="text-muted m-0 fw-medium">Dựa trên 600+ đánh giá</p>
+                </div>
+            </div>
+            <div class="platform-ratings">
+                <div class="platform-stat"><h5>4.9★</h5><small>Google</small></div>
+                <div class="platform-stat"><h5>4.8★</h5><small>Facebook</small></div>
+                <div class="platform-stat"><h5>4.9★</h5><small>Yelp</small></div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="testimonial-card">
+                    <div class="quote-icon"><i class="fas fa-quote-left"></i></div>
+                    <p>"Trải nghiệm vô cùng tuyệt vời! Bella về nhà trông như vừa bước ra từ sàn diễn. Nhân viên rất nhẹ nhàng và yêu thương — bạn có thể thấy họ thực sự quan tâm đến từng con vật. Chúng tôi sẽ không đi đâu khác!"</p>
+                    <div class="user-info">
+                        <div class="user-details">
+                            <img src="~/images/reviews/sarah.jpg" alt="Sarah">
+                            <div>
+                                <h6>Sarah Mitchell</h6>
+                                <small>Mẹ của bé Bella</small>
+                            </div>
+                        </div>
+                        <span class="review-tag"><i class="fas fa-cut me-1"></i> Cắt tỉa lông cao cấp</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="testimonial-card">
+                    <div class="quote-icon"><i class="fas fa-quote-left"></i></div>
+                    <p>"Tôi đã rất lo lắng khi để những chú mèo của mình ở lại qua đêm, nhưng Khách sạn thú cưng quá xuất sắc. Cập nhật trực tiếp, gửi ảnh suốt cả ngày, và các bé mèo của tôi thực sự có vẻ bình tĩnh khi tôi đón chúng."</p>
+                    <div class="user-info">
+                        <div class="user-details">
+                            <img src="~/images/reviews/james.jpg" alt="James">
+                            <div>
+                                <h6>James Thornton</h6>
+                                <small>Chủ nuôi mèo</small>
+                            </div>
+                        </div>
+                        <span class="review-tag review-tag-hotel"><i class="fas fa-hotel me-1"></i> Khách sạn thú cưng</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="testimonial-card">
+                    <div class="quote-icon"><i class="fas fa-quote-left"></i></div>
+                    <p>"Bé cún cứu hộ của tôi hay lo âu và thường ghét việc cắt tỉa. Nhóm ở đây đã rất kiên nhẫn với bé — mở nhạc êm dịu, làm quen từ từ và trao rất nhiều tình yêu. Bé đã bước ra với cái đuôi vẫy tít. Tôi đã khóc vì hạnh phúc!"</p>
+                    <div class="user-info">
+                        <div class="user-details">
+                            <img src="~/images/reviews/emma.jpg" alt="Emma">
+                            <div>
+                                <h6>Emma Rodriguez</h6>
+                                <small>Chủ bé cún cứu hộ</small>
+                            </div>
+                        </div>
+                        <span class="review-tag review-tag-spa"><i class="fas fa-spa me-1"></i> Spa & Thư giãn</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="contact" class="section-padding contact-section">
+    <div class="container">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-5">
+                <div class="contact-info">
+                    <span class="section-badge mb-3">Kết nối với chúng tôi</span>
+                    <h2>Đặt lịch hoặc Đặt câu hỏi</h2>
+                    <p>Dù bạn muốn đặt lịch cắt tỉa, tìm hiểu về các gói dịch vụ hay chỉ để hỏi một câu - chúng tôi luôn sẵn sàng và rất vui được hỗ trợ!</p>
+
+                    <div class="contact-item mt-5">
+                        <div class="icon"><i class="fas fa-map-marker-alt"></i></div>
+                        <div>
+                            <h6>Đến cửa hàng</h6>
+                            <p>123 Paw Avenue, Pet City, CA 90210</p>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="icon"><i class="fas fa-phone-alt"></i></div>
+                        <div>
+                            <h6>Gọi cho chúng tôi</h6>
+                            <p>+1 (555) 123-4567</p>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="icon"><i class="fas fa-envelope"></i></div>
+                        <div>
+                            <h6>Gửi Email</h6>
+                            <p>hello@petcareandspa.com</p>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="icon"><i class="far fa-clock"></i></div>
+                        <div>
+                            <h6>Giờ mở cửa</h6>
+                            <p>T2-T7: 8h-20h · CN: 9h-18h</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-7">
+                <div class="contact-form shadow-sm">
+                    <h4 class="fw-bold mb-4">Gửi tin nhắn cho chúng tôi</h4>
+
+                    @if (TempData["ContactSuccess"] != null)
+                    {
+                        <div class="alert alert-success rounded-4 fw-semibold">
+                            <i class="fas fa-check-circle me-2"></i>@TempData["ContactSuccess"]
+                        </div>
+                    }
+
+                    @if (TempData["ContactError"] != null)
+                    {
+                        <div class="alert alert-danger rounded-4 fw-semibold">
+                            <i class="fas fa-triangle-exclamation me-2"></i>@TempData["ContactError"]
+                        </div>
+                    }
+
+                    <form method="post" action="@Url.Action("SendContact", "Home")">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="returnUrl" value="@(Url.Action("Index", "Home") + "#contact")" />
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <label class="form-label">Tên của bạn</label>
+                                <input type="text" class="form-control" name="fullName" placeholder="Nguyễn Văn A" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Số điện thoại</label>
+                                <input type="text" class="form-control" name="phoneNumber" placeholder="0901 234 567" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Địa chỉ Email</label>
+                                <input type="email" class="form-control" name="email" placeholder="email@example.com">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Dịch vụ quan tâm</label>
+                                <select class="form-select" name="topic">
+                                    <option selected disabled>Chọn một dịch vụ...</option>
+                                    <option>Cắt tỉa lông cao cấp</option>
+                                    <option>Kiểm tra sức khỏe</option>
+                                    <option>Spa & Thư giãn</option>
+                                    <option>Khách sạn thú cưng</option>
+                                    <option>Câu hỏi khác</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Tin nhắn của bạn</label>
+                                <textarea class="form-control" rows="4" name="message" placeholder="Hãy kể cho chúng tôi về thú cưng của bạn và những gì bạn đang tìm kiếm..." required></textarea>
+                            </div>
+                            <div class="col-12 mt-4">
+                                <button type="submit" class="btn btn-primary w-100 py-3 d-flex align-items-center justify-content-center gap-2">
+                                    Gửi tin nhắn <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        // Xử lý nút gạt Bảng Giá
+        document.getElementById('priceToggle').addEventListener('change', function() {
+            const priceElements = document.querySelectorAll('.price-val');
+            const isYearly = this.checked;
+
+            priceElements.forEach(el => {
+                const amount = isYearly ? el.getAttribute('data-yearly') : el.getAttribute('data-monthly');
+                el.innerHTML = `$${amount}<span>/tháng</span>`;
+            });
+        });
+    </script>
+}

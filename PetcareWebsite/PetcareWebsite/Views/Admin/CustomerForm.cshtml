@@ -1,0 +1,74 @@
+@model PetcareWebsite.ViewModels.AdminCustomerEditorViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Customers";
+    ViewData["AdminTitle"] = Model.IsEditing ? "Cập nhật khách hàng" : "Thêm hồ sơ khách vãng lai";
+    ViewData["AdminSubtitle"] = Model.IsEditing
+        ? "Cập nhật thông tin liên hệ dùng cho lịch hẹn và hóa đơn."
+        : "Tạo hồ sơ cho khách chưa có tài khoản để có thể quản lý thú cưng và đặt lịch tại quầy.";
+    var cancelUrl = Model.IsEditing
+        ? Url.Action("CustomerDetails", "Admin", new { id = Model.CustomerId })
+        : Url.Action("Customers", "Admin");
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/customerform.css" asp-append-version="true" />
+}
+
+<div class="editor-wrap">
+    <div class="admin-panel editor-panel">
+        <h3 class="panel-title">Thông tin khách hàng</h3>
+
+        @if (!Model.IsEditing)
+        {
+            <div class="account-note">
+                Hồ sơ này dành cho khách vãng lai và không tạo tài khoản đăng nhập. Khi khách đăng ký bằng đúng số điện thoại này, hệ thống sẽ liên kết lại lịch sử đã có.
+            </div>
+        }
+        else if (Model.IsMember)
+        {
+            <div class="account-note">
+                Đây là khách đã có tài khoản. Nếu đổi số điện thoại, tên đăng nhập của khách cũng được cập nhật theo số mới.
+            </div>
+        }
+
+        <form method="post" action="@Url.Action("SaveCustomer", "Admin")">
+            @Html.AntiForgeryToken()
+            <input asp-for="CustomerId" type="hidden">
+            <div asp-validation-summary="ModelOnly"></div>
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="FullName">Họ và tên</label>
+                    <input class="form-control" asp-for="FullName" placeholder="Nhập họ tên khách hàng">
+                    <span asp-validation-for="FullName"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="PhoneNumber">Số điện thoại</label>
+                    <input class="form-control" asp-for="PhoneNumber" type="tel" maxlength="15" placeholder="Nhập số điện thoại">
+                    <span asp-validation-for="PhoneNumber"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="Email">Email</label>
+                    <input class="form-control" asp-for="Email" type="email" maxlength="100" placeholder="Email (không bắt buộc)">
+                    <span asp-validation-for="Email"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="Address">Địa chỉ</label>
+                    <input class="form-control" asp-for="Address" maxlength="255" placeholder="Địa chỉ (không bắt buộc)">
+                    <span asp-validation-for="Address"></span>
+                </div>
+            </div>
+
+            <div class="editor-actions">
+                <a class="btn-cancel" href="@cancelUrl">Hủy</a>
+                <button class="btn-save" type="submit"><i class="far fa-floppy-disk"></i> Lưu khách hàng</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

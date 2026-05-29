@@ -1,0 +1,218 @@
+@model PetcareWebsite.ViewModels.AdminCustomerDetailViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Customers";
+    ViewData["AdminTitle"] = "Chi tiết khách hàng";
+    ViewData["AdminSubtitle"] = $"Theo dõi thú cưng và lịch sử sử dụng dịch vụ của {Model.Customer.FullName}.";
+}
+
+@functions {
+    private static string BookingStatusText(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "Đã xác nhận",
+            3 => "Đã hoàn thành",
+            4 => "Đã hủy",
+            5 => "Đã hết hạn",
+            6 => "Đang thực hiện",
+            _ => "Chờ xác nhận"
+        };
+    }
+
+    private static string BookingStatusClass(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "confirmed",
+            3 => "completed",
+            4 => "cancelled",
+            5 => "expired",
+            6 => "progress",
+            _ => "pending"
+        };
+    }
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/customerdetails.css" asp-append-version="true" />
+}
+
+<div class="details-command">
+    <a class="btn-command" href="@Url.Action("Customers", "Admin")">
+        <i class="fas fa-arrow-left"></i> Danh sách khách hàng
+    </a>
+    <div class="command-actions">
+        <a class="btn-command" href="@Url.Action("EditCustomer", "Admin", new { id = Model.Customer.CustomerId })">
+            <i class="far fa-pen-to-square"></i> Sửa thông tin
+        </a>
+        @if (Model.Customer.Account != null)
+        {
+            var accountIsActive = Model.Customer.Account.IsActive == true;
+            <form method="post" action="@Url.Action("ToggleCustomerAccountStatus", "Admin")">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="customerId" value="@Model.Customer.CustomerId">
+                <button class="btn-command @(accountIsActive ? "lock" : "unlock")" type="submit">
+                    <i class="fas @(accountIsActive ? "fa-lock" : "fa-lock-open")"></i>
+                    @(accountIsActive ? "Khóa tài khoản" : "Mở khóa tài khoản")
+                </button>
+            </form>
+        }
+        <a class="btn-command primary" href="@Url.Action("CreatePet", "Admin", new { customerId = Model.Customer.CustomerId })">
+            <i class="fas fa-paw"></i> Thêm thú cưng
+        </a>
+    </div>
+</div>
+
+<div class="customer-overview">
+    <div class="admin-panel profile-panel">
+        <div class="profile-title">
+            <h3>@Model.Customer.FullName</h3>
+            @if (Model.Customer.AccountId.HasValue)
+            {
+                <span class="type-badge member">Thành viên</span>
+            }
+            else
+            {
+                <span class="type-badge guest">Khách vãng lai</span>
+            }
+        </div>
+        <div class="profile-lines">
+            <div><i class="fas fa-phone me-2"></i>@Model.Customer.PhoneNumber</div>
+            <div><i class="far fa-envelope me-2"></i>@(Model.Customer.Email ?? "Chưa có email")</div>
+            <div><i class="fas fa-location-dot me-2"></i>@(Model.Customer.Address ?? "Chưa có địa chỉ")</div>
+            @if (Model.Customer.Account != null)
+            {
+                <div>
+                    <i class="fas fa-shield-halved me-2"></i>Tài khoản:
+                    <span class="@(Model.Customer.Account.IsActive == true ? "account-active" : "account-locked")">
+                        @(Model.Customer.Account.IsActive == true ? "Đang hoạt động" : "Đã khóa")
+                    </span>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="admin-panel metric-panel">
+        <span>Thú cưng đang dùng</span>
+        <strong>@Model.Customer.Pets.Count(pet => pet.IsDeleted != true)</strong>
+    </div>
+    <div class="admin-panel metric-panel">
+        <span>Tổng lịch hẹn</span>
+        <strong>@Model.Bookings.Count</strong>
+    </div>
+    <div class="admin-panel metric-panel money">
+        <span>Đã thanh toán</span>
+        <strong>@Model.TotalPaid.ToString("N0") đ</strong>
+    </div>
+</div>
+
+<div class="admin-panel section-panel">
+    <div class="section-head">
+        <h3>Thú cưng của khách hàng</h3>
+        <a class="section-add" href="@Url.Action("CreatePet", "Admin", new { customerId = Model.Customer.CustomerId })">
+            <i class="fas fa-plus"></i> Thêm thú cưng
+        </a>
+    </div>
+    @if (!Model.Customer.Pets.Any())
+    {
+        <div class="empty-section">Khách hàng chưa có thú cưng.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table management-table">
+                <thead>
+                    <tr>
+                        <th>Tên thú cưng</th>
+                        <th>Loại / Giống</th>
+                        <th>Cân nặng</th>
+                        <th>Trạng thái</th>
+                        <th>Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var pet in Model.Customer.Pets.OrderByDescending(item => item.IsDeleted != true).ThenBy(item => item.Name))
+                    {
+                        var isActive = pet.IsDeleted != true;
+                        <tr>
+                            <td>
+                                <div class="strong-line">@pet.Name</div>
+                                <div class="muted-line">#@pet.PetId</div>
+                            </td>
+                            <td>
+                                <div class="strong-line">@pet.Species.SpeciesName</div>
+                                <div class="muted-line">@pet.PetBreed.BreedName</div>
+                            </td>
+                            <td>@(pet.Weight.HasValue ? $"{pet.Weight.Value:N2} kg" : "-")</td>
+                            <td><span class="pet-state @(isActive ? "pet-active" : "pet-inactive")">@(isActive ? "Đang sử dụng" : "Ngừng sử dụng")</span></td>
+                            <td>
+                                <div class="table-actions">
+                                    <a class="table-action" href="@Url.Action("EditPet", "Admin", new { id = pet.PetId })">
+                                        <i class="far fa-pen-to-square"></i> Sửa
+                                    </a>
+                                    <form method="post" action="@Url.Action("TogglePetStatus", "Admin")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="petId" value="@pet.PetId">
+                                        <button class="toggle-action" type="submit">@(isActive ? "Ngừng dùng" : "Kích hoạt")</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="admin-panel section-panel">
+    <div class="section-head">
+        <h3>Lịch sử đặt lịch</h3>
+    </div>
+    @if (!Model.Bookings.Any())
+    {
+        <div class="empty-section">Khách hàng chưa có lịch hẹn.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table management-table">
+                <thead>
+                    <tr>
+                        <th>Mã lịch</th>
+                        <th>Dịch vụ</th>
+                        <th>Thời gian hẹn</th>
+                        <th>Trạng thái</th>
+                        <th>Hóa đơn / Đã trả</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var booking in Model.Bookings)
+                    {
+                        var serviceName = booking.BookingDetails.FirstOrDefault()?.Service?.ServiceName ?? "Dịch vụ";
+                        <tr>
+                            <td>
+                                <a class="strong-line text-decoration-none" href="@Url.Action("Bookings", "Admin", new { search = booking.BookingCode })">@booking.BookingCode</a>
+                            </td>
+                            <td>@serviceName</td>
+                            <td>@booking.BookingDate.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td><span class="booking-state @BookingStatusClass(booking.StatusId)">@BookingStatusText(booking.StatusId)</span></td>
+                            <td>
+                                @if (booking.Invoice != null)
+                                {
+                                    <a class="strong-line text-decoration-none" href="@Url.Action("Invoices", "Admin", new { search = booking.Invoice.InvoiceCode })">@booking.Invoice.InvoiceCode</a>
+                                    <div class="muted-line">@((booking.Invoice.PaidAmount ?? 0).ToString("N0")) đ / @(((booking.Invoice.TotalAmount ?? 0) - (booking.Invoice.DiscountAmount ?? 0)).ToString("N0")) đ</div>
+                                }
+                                else
+                                {
+                                    <span>-</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

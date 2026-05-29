@@ -1,0 +1,114 @@
+@model PetcareWebsite.ViewModels.AdminPromotionEditorViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Promotions";
+    ViewData["AdminTitle"] = Model.IsEditing ? "Cập nhật khuyến mãi" : "Thêm mã khuyến mãi";
+    ViewData["AdminSubtitle"] = Model.IsEditing
+        ? "Điều chỉnh chương trình giảm giá cho các hóa đơn đủ điều kiện."
+        : "Tạo mã để admin áp dụng tại bước xử lý hóa đơn.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/promotionform.css" asp-append-version="true" />
+}
+
+<div class="editor-shell">
+    <div class="admin-panel editor-panel">
+        <h3 class="editor-title">Điều kiện khuyến mãi</h3>
+        @if (Model.HasUsage)
+        {
+            <div class="locked-note">
+                Mã đã được áp dụng cho @Model.InvoiceCount hóa đơn. Bạn chỉ có thể bật hoặc tắt mã; các điều kiện giảm giá được giữ nguyên để bảo toàn lịch sử thanh toán.
+            </div>
+        }
+
+        <form method="post" action="@Url.Action("SavePromotion", "Admin")">
+            @Html.AntiForgeryToken()
+            <input asp-for="PromotionId" type="hidden">
+            <input asp-for="InvoiceCount" type="hidden">
+            <div asp-validation-summary="ModelOnly"></div>
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="PromoCode">Mã khuyến mãi</label>
+                    <input class="form-control text-uppercase" asp-for="PromoCode" maxlength="20" readonly="@Model.HasUsage" placeholder="Ví dụ: WELCOME10">
+                    <span asp-validation-for="PromoCode"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="DiscountType">Loại giảm giá</label>
+                    @if (Model.HasUsage)
+                    {
+                        <input asp-for="DiscountType" type="hidden">
+                    }
+                    <select class="form-select" asp-for="DiscountType" disabled="@Model.HasUsage" id="discountType">
+                        <option value="Percentage">Giảm theo phần trăm</option>
+                        <option value="FixedAmount">Giảm số tiền cố định</option>
+                    </select>
+                    <span asp-validation-for="DiscountType"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="DiscountValue">Giá trị giảm</label>
+                    <input class="form-control" asp-for="DiscountValue" type="number" min="0.01" step="0.01" readonly="@Model.HasUsage">
+                    <span asp-validation-for="DiscountValue"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="MaxDiscount">Giảm tối đa (đ)</label>
+                    <input class="form-control" asp-for="MaxDiscount" type="number" min="0" step="1000" readonly="@Model.HasUsage" placeholder="0 = không giới hạn">
+                    <span asp-validation-for="MaxDiscount"></span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" asp-for="MinOrderValue">Đơn tối thiểu (đ)</label>
+                    <input class="form-control" asp-for="MinOrderValue" type="number" min="0" step="1000" readonly="@Model.HasUsage">
+                    <span asp-validation-for="MinOrderValue"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="StartDate">Bắt đầu</label>
+                    <input class="form-control" asp-for="StartDate" type="datetime-local" readonly="@Model.HasUsage">
+                    <span asp-validation-for="StartDate"></span>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" asp-for="EndDate">Kết thúc</label>
+                    <input class="form-control" asp-for="EndDate" type="datetime-local" readonly="@Model.HasUsage">
+                    <span asp-validation-for="EndDate"></span>
+                </div>
+                <div class="col-12">
+                    <label class="status-toggle">
+                        <input asp-for="IsActive" type="checkbox">
+                        Mã đang được phép áp dụng cho hóa đơn đủ điều kiện
+                    </label>
+                </div>
+            </div>
+
+            <div class="editor-actions">
+                <a class="btn-cancel" href="@Url.Action("Promotions", "Admin")">Hủy</a>
+                <button class="btn-save" type="submit"><i class="far fa-floppy-disk"></i> Lưu khuyến mãi</button>
+            </div>
+        </form>
+    </div>
+
+    <aside>
+        @if (Model.IsEditing)
+        {
+            <div class="admin-panel side-box">
+                <h3>Sử dụng mã</h3>
+                <div class="metric-line">
+                    <span>Hóa đơn đã áp dụng</span>
+                    <strong>@Model.InvoiceCount</strong>
+                </div>
+            </div>
+        }
+        <div class="admin-panel side-box">
+            <h3>Quy tắc áp dụng</h3>
+            <div class="rule-note">
+                Admin chọn mã trên trang hóa đơn trước khi ghi nhận thanh toán. Một hóa đơn đã thu tiền sẽ không được đổi hoặc bỏ mã.
+                <br><br>
+                Hệ thống kiểm tra thời hạn mã theo thời điểm hóa đơn được tạo và giá trị đơn tối thiểu.
+            </div>
+        </div>
+    </aside>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

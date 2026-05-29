@@ -1,0 +1,149 @@
+@model PetcareWebsite.Models.ServiceCatalog
+@{
+    // Tự động đổi tiêu đề trang theo tên dịch vụ lấy từ Database
+    ViewData["Title"] = Model.ServiceName + " - Chi Tiết Dịch Vụ | PetCare";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/service/detail.css" asp-append-version="true" />
+}
+
+<section class="detail-hero">
+    <div class="container">
+        <div class="breadcrumb-custom">
+            <a href="@Url.Action("Index", "Home")">Trang chủ</a>
+            <i class="fas fa-chevron-right"></i>
+            <a href="@Url.Action("Index", "Service")">Dịch vụ</a>
+            <i class="fas fa-chevron-right"></i>
+            <span class="active">@Model.ServiceName</span>
+        </div>
+
+        <span class="category-badge">
+            <i class="fas fa-tags me-2 text-warning"></i> @(Model.Category?.CategoryName ?? "Chăm sóc thú cưng")
+        </span>
+        <h1 class="service-title">@Model.ServiceName</h1>
+
+        <div class="d-flex flex-wrap align-items-center gap-4 text-muted mt-3 font-medium">
+            <span><i class="fas fa-star text-warning me-1"></i> 4.9 (650+ Lượt đánh giá)</span>
+            <span><i class="fas fa-certificate text-primary me-1"></i> Đạt chuẩn 5 sao</span>
+            <span><i class="fas fa-shield-alt text-success me-1"></i> Đảm bảo an toàn tuyệt đối</span>
+        </div>
+    </div>
+</section>
+
+<section class="content-section">
+    <div class="container">
+        <div class="row align-items-start">
+
+            <div class="col-lg-8 pe-lg-5">
+                <div class="main-image-wrapper">
+                    <img src="~/images/hero/service-spa.jpg" alt="@Model.ServiceName">
+                </div>
+
+                <h3 class="fw-bold mb-4 fs-2">Tổng quan về dịch vụ</h3>
+                <p class="service-main-text">@Model.Description</p>
+                <p class="service-main-text">
+                    Tại hệ thống chăm sóc thú cưng <strong>PetCare</strong>, chúng tôi hiểu rằng mỗi bé cún, bé mèo đều có những đặc điểm cơ địa và tâm lý riêng biệt. Quy trình thực hiện dịch vụ này được xây dựng dựa trên sự thấu hiểu sâu sắc kết hợp với trang thiết bị vô trùng hiện đại bậc nhất, mang đến cho thú cưng một không gian thư giãn an lành và trọn vẹn.
+                </p>
+
+                <div class="highlight-box">
+                    <h4 class="text-dark d-flex align-items-center gap-2">
+                        <i class="fas fa-gift text-green"></i> Lợi ích đặc quyền của gói dịch vụ
+                    </h4>
+                    <ul class="list-unstyled highlight-list m-0">
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <div><strong>Chuyên viên tay nghề cao:</strong> Được thực hiện hoàn toàn bởi các Groomer/Bác sĩ có chứng chỉ quốc tế và trên 5 năm kinh nghiệm thực tế chuyên sâu.</div>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <div><strong>100% Sản phẩm hữu cơ nhập khẩu:</strong> Cam kết sử dụng các dòng dầu gội, tinh chất dưỡng lông mượt có nguồn gốc thiên nhiên an toàn từ Ý, không gây kích ứng da.</div>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <div><strong>Quy trình vô trùng nghiêm ngặt:</strong> Toàn bộ dụng cụ cắt tỉa, sấy, bồn tắm sục đều trải qua chu trình khử khuẩn bằng tia UV trước khi tiếp nhận thú cưng mới.</div>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <div><strong>Tư vấn y tế & dinh dưỡng miễn phí:</strong> Sau dịch vụ, sếp sẽ được các chuyên gia tư vấn chi tiết về tình trạng sức khỏe lông da hiện tại và chế độ ăn phù hợp cho bé.</div>
+                        </li>
+                    </ul>
+                </div>
+
+                <h3 class="fw-bold mb-4 fs-2 mt-5">Quy trình thực hiện chuẩn mực</h3>
+                <p class="text-muted mb-4">Chúng tôi thực hiện đầy đủ các bước cam kết để đảm bảo chất lượng dịch vụ tốt nhất:</p>
+
+                <div class="timeline-steps">
+                    <div class="timeline-step-item">
+                        <div class="step-icon-num">1</div>
+                        <div class="step-text">
+                            <h5>Tiếp nhận & Đánh giá sức khỏe tổng quan</h5>
+                            <p>Chuyên viên tiến hành cân đo, kiểm tra kỹ lưỡng tình trạng lông, da xem có bị nấm, ve rận hay vết thương hở hay không để đưa ra giải pháp sữa tắm và liệu trình phù hợp nhất.</p>
+                        </div>
+                    </div>
+                    <div class="timeline-step-item">
+                        <div class="step-icon-num">2</div>
+                        <div class="step-text">
+                            <h5>Massage thư giãn & Làm quen môi trường</h5>
+                            <p>Để giảm tối đa sự căng thẳng (stress) của thú cưng, các bé sẽ được nghe nhạc êm dịu, vui chơi nhẹ nhàng và massage các huyệt đạo cơ bản để làm quen với các chuyên viên.</p>
+                        </div>
+                    </div>
+                    <div class="timeline-step-item">
+                        <div class="step-icon-num">3</div>
+                        <div class="step-text">
+                            <h5>Thực hiện chu trình chuyên sâu</h5>
+                            <p>Tiến hành các kỹ thuật nghiệp vụ chuyên sâu theo đúng gói dịch vụ sếp lựa chọn bằng các trang thiết bị máy móc hiện đại, nhẹ nhàng nâng niu cơ thể bé.</p>
+                        </div>
+                    </div>
+                    <div class="timeline-step-item">
+                        <div class="step-icon-num">4</div>
+                        <div class="step-text">
+                            <h5>Sấy tạo phom & Xịt tinh chất dưỡng bảo vệ</h5>
+                            <p>Sử dụng máy sấy chuyên dụng chế độ tiếng ồn thấp để làm khô lông tuyệt đối, chải tơi xốp tạo phom dáng chuẩn, cuối cùng xịt một lớp nước hoa dưỡng lông kháng khuẩn lưu hương 7 ngày.</p>
+                        </div>
+                    </div>
+                    <div class="timeline-step-item">
+                        <div class="step-icon-num">5</div>
+                        <div class="step-text">
+                            <h5>Bàn giao thú cưng & Hướng dẫn chăm sóc tại nhà</h5>
+                            <p>Giao trả bé cưng lại cho ba mẹ trong trạng thái thơm tho, sạch sẽ kèm phiếu kiểm tra sức khỏe và quà tặng check-in độc quyền từ trung tâm.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="sticky-booking-sidebar">
+                    <div class="sidebar-price-label">Giá trọn gói công khai</div>
+                    <div class="sidebar-price-value">
+                        @Model.BasePrice.ToString("N0")<span>VNĐ</span>
+                    </div>
+
+                    <div class="sidebar-meta-group">
+                        <div class="sidebar-meta-item">
+                            <span class="meta-label-txt"><i class="far fa-clock text-green"></i> Thời gian dự kiến</span>
+                            <span class="meta-value-txt">60 - 120 phút</span>
+                        </div>
+                        <div class="sidebar-meta-item">
+                            <span class="meta-label-txt"><i class="fas fa-spray-can text-green"></i> Sản phẩm áp dụng</span>
+                            <span class="meta-value-txt">Dược liệu hữu cơ</span>
+                        </div>
+                        <div class="sidebar-meta-item">
+                            <span class="meta-label-txt"><i class="fas fa-shield-alt text-green"></i> Cam kết hoàn tiền</span>
+                            <span class="meta-value-txt">Nếu không hài lòng</span>
+                        </div>
+                    </div>
+
+                    <a href="@Url.Action("Index", "Booking", new { serviceId = Model.ServiceId })" class="btn-sidebar-submit">
+                        Tiến hành Đặt lịch hẹn ngay
+                    </a>
+
+                    <div class="guarantee-note">
+                        <i class="fas fa-lock text-success me-1"></i> Xác nhận đặt lịch trực tuyến miễn phí · Thanh toán linh hoạt tại cửa hàng sau khi hoàn thành.
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>

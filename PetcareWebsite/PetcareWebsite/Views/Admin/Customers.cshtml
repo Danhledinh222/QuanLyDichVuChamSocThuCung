@@ -1,0 +1,115 @@
+@model PetcareWebsite.ViewModels.AdminCustomersViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Customers";
+    ViewData["AdminTitle"] = "Quản lý khách hàng & thú cưng";
+    ViewData["AdminSubtitle"] = "Quản lý hồ sơ thành viên, khách vãng lai và danh sách thú cưng phục vụ đặt lịch.";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/customers.css" asp-append-version="true" />
+}
+
+<div class="customers-command">
+    <a class="btn-create" href="@Url.Action("CreateCustomer", "Admin")">
+        <i class="fas fa-user-plus"></i> Thêm hồ sơ vãng lai
+    </a>
+</div>
+
+<div class="customer-summary">
+    <a class="admin-panel summary-item" href="@Url.Action("Customers", "Admin")">
+        <span>Tất cả khách hàng</span><strong>@Model.TotalCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Customers", "Admin", new { customerType = "Member" })">
+        <span>Thành viên</span><strong>@Model.MemberCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Customers", "Admin", new { customerType = "Guest" })">
+        <span>Khách vãng lai</span><strong>@Model.GuestCount</strong>
+    </a>
+    <div class="admin-panel summary-item">
+        <span>Thú cưng hoạt động</span><strong>@Model.PetCount</strong>
+    </div>
+</div>
+
+<div class="admin-panel">
+    <form method="get" action="@Url.Action("Customers", "Admin")" class="filter-bar">
+        <input class="form-control" type="search" name="search" value="@Model.Search" placeholder="Tìm họ tên, số điện thoại hoặc email">
+        <select class="form-select customer-type-filter" name="customerType">
+            <option value="">Tất cả loại khách</option>
+            <option value="Member" selected="@(Model.CustomerType == "Member" ? "selected" : null)">Thành viên</option>
+            <option value="Guest" selected="@(Model.CustomerType == "Guest" ? "selected" : null)">Khách vãng lai</option>
+        </select>
+        <button class="btn-filter" type="submit"><i class="fas fa-magnifying-glass me-2"></i>Lọc</button>
+        <a class="clear-link" href="@Url.Action("Customers", "Admin")">Xóa lọc</a>
+    </form>
+
+    @if (!Model.Customers.Any())
+    {
+        <div class="empty-state">
+            <i class="far fa-folder-open fs-2 mb-3 d-block"></i>
+            Không có khách hàng phù hợp.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table customer-table">
+                <thead>
+                    <tr>
+                        <th>Khách hàng</th>
+                        <th>Liên hệ</th>
+                        <th>Loại hồ sơ</th>
+                        <th>Thú cưng</th>
+                        <th>Lịch hẹn</th>
+                        <th>Lịch gần nhất</th>
+                        <th>Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var customer in Model.Customers)
+                    {
+                        var bookings = customer.Bookings.Where(item => item.IsDeleted != true).ToList();
+                        var latestBooking = bookings.OrderByDescending(item => item.BookingDate).FirstOrDefault();
+                        <tr>
+                            <td>
+                                <div class="primary-text">@customer.FullName</div>
+                                <div class="muted-line">#@customer.CustomerId</div>
+                            </td>
+                            <td>
+                                <div class="primary-text">@customer.PhoneNumber</div>
+                                <div class="muted-line">@(customer.Email ?? "Chưa có email")</div>
+                            </td>
+                            <td>
+                                @if (customer.AccountId.HasValue)
+                                {
+                                    <span class="type-badge member">Thành viên</span>
+                                    <div class="muted-line @(customer.Account?.IsActive == true ? "account-active" : "account-locked")">
+                                        @(customer.Account?.IsActive == true ? "Tài khoản hoạt động" : "Tài khoản đã khóa")
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="type-badge guest">Vãng lai</span>
+                                }
+                            </td>
+                            <td><span class="metric">@customer.Pets.Count(item => item.IsDeleted != true)</span> đang dùng</td>
+                            <td><span class="metric">@bookings.Count</span> lịch</td>
+                            <td>@(latestBooking?.BookingDate.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                            <td>
+                                <div class="row-actions">
+                                    <a class="row-action" href="@Url.Action("CustomerDetails", "Admin", new { id = customer.CustomerId })">
+                                        <i class="far fa-eye"></i> Chi tiết
+                                    </a>
+                                    <a class="row-action" href="@Url.Action("EditCustomer", "Admin", new { id = customer.CustomerId })" title="Cập nhật khách hàng">
+                                        <i class="far fa-pen-to-square"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

@@ -1,0 +1,132 @@
+@model PetcareWebsite.Models.Customer
+
+@{
+    ViewData["Title"] = "Hồ sơ cá nhân | PetCare";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/profile/index.css" asp-append-version="true" />
+}
+
+<div class="profile-wrapper">
+    <div class="container">
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success fw-bold text-center border-0 rounded-4 shadow-sm mb-4">
+                <i class="fas fa-check-circle me-2"></i> @TempData["SuccessMessage"]
+            </div>
+        }
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger fw-bold text-center border-0 rounded-4 shadow-sm mb-4">
+                <i class="fas fa-exclamation-triangle me-2"></i> @TempData["ErrorMessage"]
+            </div>
+        }
+
+        <div class="row g-4">
+
+            <div class="col-lg-4">
+                <div class="profile-card text-center">
+                    <div class="profile-summary">
+                        <div class="avatar-container">
+                            <img src="~/images/common/user-avatar.jpg" alt="Avatar">
+                            <button class="btn-edit-avatar" title="Thay đổi ảnh đại diện">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
+                        <h4>@Model.FullName</h4>
+                        <p>@Model.Email</p>
+                        <span class="badge-status">Thành viên Tiêu chuẩn</span>
+                    </div>
+
+                    <div class="quick-actions-grid">
+                        <a href="@Url.Action("Index", "Pet")" class="action-card">
+                            <i class="fas fa-paw"></i>
+                            <span>Thú cưng</span>
+                        </a>
+                        <a href="@Url.Action("Detail", "Booking")" class="action-card">
+                            <i class="far fa-calendar-check"></i>
+                            <span>Lịch hẹn</span>
+                        </a>
+                        <a href="@Url.Action("Billing", "Profile")" class="action-card">
+                            <i class="far fa-credit-card"></i>
+                            <span>Thanh toán</span>
+                        </a>
+                        <a href="@Url.Action("Reviews", "Profile")" class="action-card">
+                            <i class="far fa-star"></i>
+                            <span>Đánh giá</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="profile-card">
+                    <div class="section-header">
+                        <h3>Thông tin cá nhân</h3>
+                        <button class="btn btn-outline-custom" id="toggleEditBtn" onclick="toggleEditMode()">
+                            <i class="far fa-edit me-2"></i> Chỉnh sửa
+                        </button>
+                    </div>
+
+                    <form asp-action="Update" asp-controller="Profile" method="POST" id="profileForm">
+                        <div class="row">
+                            <div class="col-md-6 form-group">
+                                <label>Họ và tên</label>
+                                <input type="text" name="FullName" class="form-control editable-field" value="@Model.FullName" disabled required>
+                            </div>
+                            <div class="col-md-6 form-group">
+                                <label>Số điện thoại (Tên đăng nhập)</label>
+                                <input type="tel" name="PhoneNumber" class="form-control editable-field" value="@Model.PhoneNumber" disabled required>
+                            </div>
+                            <div class="col-md-12 form-group">
+                                <label>Địa chỉ Email</label>
+                                <input type="email" name="Email" class="form-control editable-field" value="@Model.Email" disabled>
+                                <small class="text-muted mt-2 d-inline-block">Dùng để nhận các thông báo khuyến mãi và lịch hẹn.</small>
+                            </div>
+                            <div class="col-md-12 form-group">
+                                <label>Địa chỉ</label>
+                                <input type="text" name="Address" class="form-control editable-field" value="@Model.Address" disabled>
+                            </div>
+                        </div>
+
+                        <div class="btn-save-wrap" id="saveBtnWrapper">
+                            <button type="submit" class="btn btn-primary px-5 py-3">Lưu cập nhật</button>
+                            <button type="button" class="btn btn-link text-muted text-decoration-none ms-3 fw-bold" onclick="toggleEditMode()">Hủy bỏ</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Tính năng Tắt/Bật chế độ chỉnh sửa form
+        function toggleEditMode() {
+            const fields = document.querySelectorAll('.editable-field');
+            const saveBtnWrapper = document.getElementById('saveBtnWrapper');
+            const toggleBtn = document.getElementById('toggleEditBtn');
+
+            let isCurrentlyDisabled = fields[0].disabled;
+
+            fields.forEach(field => {
+                field.disabled = !isCurrentlyDisabled;
+            });
+
+            if (isCurrentlyDisabled) {
+                // Đang chuyển sang chế độ CHỈNH SỬA
+                saveBtnWrapper.style.display = 'block';
+                toggleBtn.style.display = 'none';
+                fields[0].focus();
+            } else {
+                // Đang HỦY CHỈNH SỬA
+                saveBtnWrapper.style.display = 'none';
+                toggleBtn.style.display = 'inline-block';
+            }
+        }
+    </script>
+}

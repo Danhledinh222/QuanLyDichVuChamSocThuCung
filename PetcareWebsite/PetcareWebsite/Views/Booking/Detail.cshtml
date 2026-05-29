@@ -1,0 +1,486 @@
+@model IEnumerable<PetcareWebsite.Models.Booking>
+@using System.Linq
+
+@{
+    ViewData["Title"] = "Lịch sử đặt lịch | PetCare";
+    int totalBookings = ViewBag.TotalBookings ?? 0;
+    int completedBookings = ViewBag.CompletedBookings ?? 0;
+    int upcomingBookings = ViewBag.UpcomingBookings ?? 0;
+}
+
+@functions {
+    private const int BookingStatusCompleted = 3;
+    private const int BookingStatusCancelled = 4;
+    private const int BookingStatusExpired = 5;
+    private const int BookingStatusInProgress = 6;
+    private const int DetailStatusInProgress = 2;
+
+    private static bool IsBookingCompleted(Booking booking)
+    {
+        if (booking.StatusId == BookingStatusCancelled || booking.StatusId == BookingStatusExpired)
+        {
+            return false;
+        }
+
+        return booking.StatusId == BookingStatusCompleted ||
+               (booking.BookingDetails.Any() && booking.BookingDetails.All(detail => detail.StatusId == BookingStatusCompleted));
+    }
+
+    private static bool CanReviewDetail(BookingDetail detail)
+    {
+        return detail.Booking.StatusId != BookingStatusCancelled &&
+               detail.Booking.StatusId != BookingStatusExpired &&
+               (detail.StatusId == BookingStatusCompleted || detail.Booking.StatusId == BookingStatusCompleted);
+    }
+
+    private static bool IsBookingExpired(Booking booking)
+    {
+        return booking.StatusId == BookingStatusExpired;
+    }
+
+    private static string GetBookingStatusClass(Booking booking)
+    {
+        if (booking.StatusId == BookingStatusCancelled)
+        {
+            return "cancelled";
+        }
+
+        if (IsBookingCompleted(booking))
+        {
+            return "completed";
+        }
+
+        if (booking.StatusId == BookingStatusInProgress)
+        {
+            return "progress";
+        }
+
+        return IsBookingExpired(booking) ? "expired" : "pending";
+    }
+
+    private static string GetBookingStatusText(Booking booking)
+    {
+        return GetBookingStatusClass(booking) switch
+        {
+            "completed" => "Đã hoàn thành",
+            "cancelled" => "Đã hủy",
+            "expired" => "Đã hết hạn",
+            "progress" => "Đang thực hiện",
+            _ => "Lịch sắp tới"
+        };
+    }
+
+    private static string GetDetailStatusText(BookingDetail detail)
+    {
+        if (detail.StatusId == BookingStatusCancelled)
+        {
+            return "Đã hủy";
+        }
+
+        if (CanReviewDetail(detail))
+        {
+            return "Đã hoàn thành";
+        }
+
+        if (IsBookingExpired(detail.Booking))
+        {
+            return "Đã hết hạn";
+        }
+
+        return detail.StatusId switch
+        {
+            DetailStatusInProgress => "Đang thực hiện",
+            3 => "Đã hoàn thành",
+            _ => "Chưa bắt đầu"
+        };
+    }
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/booking/detail.css" asp-append-version="true" />
+}
+
+<div class="history-wrapper">
+    <div class="container history-container">
+
+        <div class="page-header">
+            <h1 class="page-title">Lịch sử đặt lịch</h1>
+            <p class="page-subtitle">Xem lại lịch hẹn, hóa đơn và đánh giá các dịch vụ đã hoàn thành.</p>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success rounded-4 fw-semibold">
+                <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            </div>
+        }
+
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger rounded-4 fw-semibold">
+                <i class="fas fa-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
+            </div>
+        }
+
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
+                <div class="stat-data">
+                    <span class="stat-number">@totalBookings</span>
+                    <span class="stat-label">Tổng lịch đặt</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-data">
+                    <span class="stat-number">@completedBookings</span>
+                    <span class="stat-label">Đã hoàn thành</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon yellow"><i class="fas fa-clock"></i></div>
+                <div class="stat-data">
+                    <span class="stat-number">@upcomingBookings</span>
+                    <span class="stat-label">Lịch sắp tới</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-container">
+            <div class="filter-group">
+                <label>Trạng thái:</label>
+                <select class="form-select flex-grow-1" id="statusFilter" onchange="filterBookings()">
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="pending">Lịch sắp tới</option>
+                    <option value="progress">Đang thực hiện</option>
+                    <option value="completed">Đã hoàn thành</option>
+                    <option value="expired">Đã hết hạn</option>
+                    <option value="cancelled">Đã hủy</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Từ ngày:</label>
+                <input type="date" class="form-control flex-grow-1" id="startDate" onchange="filterBookings()">
+            </div>
+            <div class="filter-group">
+                <label>Đến ngày:</label>
+                <input type="date" class="form-control flex-grow-1" id="endDate" onchange="filterBookings()">
+            </div>
+        </div>
+
+        <div class="booking-list" id="bookingListContainer">
+            @if (!Model.Any())
+            {
+                <div class="empty-state">
+                    <i class="far fa-calendar-times"></i>
+                    <h3 class="fw-bold">Chưa có lịch sử đặt lịch</h3>
+                    <p class="text-muted mb-4">Bạn chưa thực hiện bất kỳ lịch hẹn chăm sóc thú cưng nào.</p>
+                    <a href="@Url.Action("Index", "Booking")" class="btn-action btn-primary-action px-4 py-2">
+                        <i class="fas fa-plus"></i> Đặt lịch ngay
+                    </a>
+                </div>
+            }
+            else
+            {
+                foreach (var booking in Model)
+                {
+                    var firstDetail = booking.BookingDetails.FirstOrDefault();
+                    var petNames = booking.BookingDetails
+                        .Select(detail => detail.Pet?.Name)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .Distinct()
+                        .ToList();
+                    var serviceNames = booking.BookingDetails
+                        .Select(detail => detail.Service?.ServiceName)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .ToList();
+                    var statusClass = GetBookingStatusClass(booking);
+                    var statusText = GetBookingStatusText(booking);
+                    var statusBadgeClass = statusClass == "completed" ? "status-completed" : statusClass == "cancelled" ? "status-cancelled" : statusClass == "expired" ? "status-expired" : statusClass == "progress" ? "status-progress" : "status-pending";
+                    var totalAmount = booking.Invoice != null
+                        ? (booking.Invoice.TotalAmount ?? 0) - (booking.Invoice.DiscountAmount ?? 0)
+                        : booking.BookingDetails.Sum(detail => detail.ActualPrice);
+                    var titlePet = petNames.Any() ? string.Join(", ", petNames) : "Thú cưng";
+                    var titleService = serviceNames.Any() ? string.Join(", ", serviceNames) : "Dịch vụ chăm sóc";
+
+                    <article class="booking-card booking-item @statusClass" data-status="@statusClass" data-date="@booking.BookingDate.ToString("yyyy-MM-dd")" id="booking-@booking.BookingId">
+                        <div class="bc-header" onclick="toggleCard(this)">
+                            <div class="bc-date-box">
+                                <span class="day">@booking.BookingDate.Day.ToString("00")</span>
+                                <span class="month">Th@(booking.BookingDate.Month)</span>
+                            </div>
+                            <div class="bc-info">
+                                <div class="booking-id">#@booking.BookingCode</div>
+                                <h4>@titlePet</h4>
+                                <p class="services"><i class="fas fa-sparkles"></i> @titleService</p>
+                            </div>
+                            <div class="bc-meta">
+                                <div class="bc-price">@totalAmount.ToString("N0") đ</div>
+                                <span class="status-badge @statusBadgeClass">@statusText</span>
+                            </div>
+                            <div class="bc-toggle"><i class="fas fa-chevron-down"></i></div>
+                        </div>
+
+                        <div class="bc-body">
+                            <div class="detail-row">
+                                <span class="label">Mã đặt lịch:</span>
+                                <span class="value text-primary">@booking.BookingCode</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">Thời gian hẹn:</span>
+                                <span class="value">@booking.BookingDate.ToString("dd/MM/yyyy") - @booking.BookingDate.ToString("HH:mm")</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">Trạng thái đơn:</span>
+                                <span class="value">@statusText</span>
+                            </div>
+                            @if ((booking.Invoice?.DiscountAmount ?? 0) > 0)
+                            {
+                                <div class="detail-row">
+                                    <span class="label">Khuyến mãi @(booking.Invoice?.Promotion?.PromoCode != null ? $"({booking.Invoice.Promotion.PromoCode})" : ""):</span>
+                                    <span class="value text-success">- @((booking.Invoice!.DiscountAmount ?? 0).ToString("N0")) đ</span>
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(booking.Notes))
+                            {
+                                <div class="note-box">
+                                    <strong><i class="fas fa-comment-dots me-2"></i>Ghi chú của bạn:</strong> @booking.Notes
+                                </div>
+                            }
+
+                            @foreach (var detail in booking.BookingDetails)
+                            {
+                                var review = detail.ServiceReview;
+                                var canReview = CanReviewDetail(detail);
+                                var detailExpired = IsBookingExpired(detail.Booking);
+                                var assignedEmployees = detail.BookingDetailEmployees
+                                    .Select(item => item.Employee?.FullName)
+                                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                                    .ToList();
+                                var employeeText = assignedEmployees.Any() ? string.Join(", ", assignedEmployees) : "Chưa phân công";
+                                var selectedRating = review?.Rating ?? 5;
+                                var existingTags = review?.ReviewTags ?? "";
+
+                                <div class="service-detail-box" id="detail-@detail.BookingDetailId">
+                                    <div class="service-detail-head">
+                                        <div>
+                                            <h5 class="service-detail-title">@detail.Service?.ServiceName</h5>
+                                            <p class="service-detail-subtitle">
+                                                <i class="fas fa-paw me-1 text-success"></i>
+                                                @(detail.Pet?.Name ?? "Thú cưng") @(detail.Pet?.PetBreed?.BreedName != null ? $"({detail.Pet.PetBreed.BreedName})" : "")
+                                            </p>
+                                        </div>
+                                        <span class="status-badge @(canReview ? "status-completed" : detail.StatusId == BookingStatusCancelled ? "status-cancelled" : detailExpired ? "status-expired" : detail.StatusId == DetailStatusInProgress ? "status-progress" : "status-pending")">
+                                            @GetDetailStatusText(detail)
+                                        </span>
+                                    </div>
+
+                                    <div class="detail-row">
+                                        <span class="label">Giá dịch vụ:</span>
+                                        <span class="value">@detail.ActualPrice.ToString("N0") đ</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="label">Nhân viên chăm sóc:</span>
+                                        <span class="value">@employeeText</span>
+                                    </div>
+                                    @if (detail.StartTime.HasValue)
+                                    {
+                                        <div class="detail-row">
+                                            <span class="label">Bắt đầu thực tế:</span>
+                                            <span class="value">@detail.StartTime.Value.ToString("dd/MM/yyyy - HH:mm")</span>
+                                        </div>
+                                    }
+                                    @if (detail.EndTime.HasValue)
+                                    {
+                                        <div class="detail-row">
+                                            <span class="label">Kết thúc thực tế:</span>
+                                            <span class="value">@detail.EndTime.Value.ToString("dd/MM/yyyy - HH:mm")</span>
+                                        </div>
+                                    }
+
+                                    @if (review != null)
+                                    {
+                                        <div class="review-box">
+                                            <div class="d-flex justify-content-between gap-3 flex-wrap">
+                                                <strong><i class="fas fa-star text-warning me-2"></i>Đánh giá của bạn</strong>
+                                                <div class="review-stars">
+                                                    @for (int star = 1; star <= 5; star++)
+                                                    {
+                                                        <i class="fas fa-star @(star <= review.Rating ? "active" : "")"></i>
+                                                    }
+                                                </div>
+                                            </div>
+                                            @if (review.IsVisible == false)
+                                            {
+                                                <div class="review-moderation"><i class="fas fa-eye-slash me-1"></i>Đánh giá này đang được quản trị viên ẩn.</div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(review.Content))
+                                            {
+                                                <p class="mb-0 mt-2 text-muted">@review.Content</p>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(review.ReviewTags))
+                                            {
+                                                <div class="review-tags">
+                                                    @foreach (var tag in review.ReviewTags.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                                    {
+                                                        <span class="review-tag">@tag.Trim()</span>
+                                                    }
+                                                </div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(review.StoreReply))
+                                            {
+                                                <div class="review-reply">
+                                                    <strong><i class="fas fa-heart me-1"></i>PetCare phản hồi</strong>
+                                                    <p>@review.StoreReply</p>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    <div class="bc-actions">
+                                        @if (canReview)
+                                        {
+                                            <button type="button" class="btn-action btn-primary-action" data-bs-toggle="modal" data-bs-target="#reviewModal-@detail.BookingDetailId">
+                                                <i class="fas fa-star"></i> @(review == null ? "Đánh giá ngay" : "Cập nhật đánh giá")
+                                            </button>
+                                        }
+                                    </div>
+
+                                    @if (canReview)
+                                    {
+                                        <div class="modal fade" id="reviewModal-@detail.BookingDetailId" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog modal-dialog-centered">
+                                                <div class="modal-content border-0 shadow-lg review-modal-content">
+                                                    <div class="modal-header border-0 pb-0">
+                                                        <div>
+                                                            <h5 class="modal-title fw-bold">Đánh giá dịch vụ</h5>
+                                                            <p class="text-muted small mb-0">@detail.Service?.ServiceName - @(detail.Pet?.Name ?? "Thú cưng")</p>
+                                                        </div>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <form asp-controller="Booking" asp-action="AddReview" method="post">
+                                                        <div class="modal-body pt-3">
+                                                            <input type="hidden" name="bookingDetailId" value="@detail.BookingDetailId" />
+
+                                                            <label class="form-label fw-bold">Mức độ hài lòng</label>
+                                                            <div class="rating-picker mb-3">
+                                                                @for (int star = 5; star >= 1; star--)
+                                                                {
+                                                                    <input type="radio" id="rating-@detail.BookingDetailId-@star" name="rating" value="@star" checked="@(selectedRating == star)" />
+                                                                    <label for="rating-@detail.BookingDetailId-@star"><i class="fas fa-star"></i></label>
+                                                                }
+                                                            </div>
+
+                                                            <label class="form-label fw-bold">Điểm nổi bật</label>
+                                                            <div class="row g-2 mb-3">
+                                                                @{
+                                                                    string[] tagOptions = { "Phục vụ tốt", "Đúng giờ", "Bé thoải mái", "Không gian sạch", "Tư vấn kỹ" };
+                                                                }
+                                                                @foreach (var tag in tagOptions)
+                                                                {
+                                                                    <div class="col-6">
+                                                                        <label class="form-check border rounded-3 px-3 py-2 h-100">
+                                                                            <input class="form-check-input me-2" type="checkbox" name="reviewTags" value="@tag" checked="@(existingTags.Contains(tag))" />
+                                                                            <span class="form-check-label fw-semibold">@tag</span>
+                                                                        </label>
+                                                                    </div>
+                                                                }
+                                                            </div>
+
+                                                            <label class="form-label fw-bold">Nội dung đánh giá</label>
+                                                            <textarea class="form-control" name="content" rows="4" maxlength="1000" placeholder="Chia sẻ cảm nhận của bạn về dịch vụ...">@review?.Content</textarea>
+                                                        </div>
+                                                        <div class="modal-footer border-0 pt-0">
+                                                            <button type="button" class="btn btn-light rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Đóng</button>
+                                                            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Lưu đánh giá</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <div class="bc-actions">
+                                <a href="@Url.Action("Success", "Booking", new { code = booking.BookingCode })" class="btn-action btn-outline-action">
+                                    <i class="fas fa-receipt"></i> Xem chi tiết hóa đơn
+                                </a>
+                                @if (firstDetail?.ServiceId != null)
+                                {
+                                    <a href="@Url.Action("Index", "Booking", new { serviceId = firstDetail.ServiceId })" class="btn-action btn-primary-action">
+                                        <i class="fas fa-redo"></i> Đặt lại dịch vụ
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    </article>
+                }
+            }
+        </div>
+
+        <div class="quick-action-cta">
+            <div class="cta-content">
+                <h3>Chăm sóc thú cưng tốt hơn mỗi ngày</h3>
+                <p>Đặt lịch mới hoặc xem thêm các gói spa, cắt tỉa và chăm sóc sức khỏe đang hoạt động.</p>
+                <div class="cta-buttons">
+                    <a href="@Url.Action("Index", "Booking")" class="btn-action btn-primary-action px-4 py-2">
+                        <i class="fas fa-plus"></i> Đặt lịch mới
+                    </a>
+                    <a href="@Url.Action("Index", "Service")" class="btn-action btn-outline-action px-4 py-2">
+                        <i class="fas fa-search"></i> Xem dịch vụ
+                    </a>
+                </div>
+            </div>
+            <div class="cta-visual">
+                <i class="fas fa-dog"></i>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function toggleCard(headerElement) {
+            const card = headerElement.parentElement;
+            const allCards = document.querySelectorAll('.booking-card');
+
+            allCards.forEach((item) => {
+                if (item !== card && item.classList.contains('expanded')) {
+                    item.classList.remove('expanded');
+                }
+            });
+
+            card.classList.toggle('expanded');
+        }
+
+        function filterBookings() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const items = document.querySelectorAll('.booking-item');
+
+            items.forEach((item) => {
+                const itemStatus = item.getAttribute('data-status');
+                const itemDate = item.getAttribute('data-date');
+                let show = true;
+
+                if (statusFilter !== 'all' && itemStatus !== statusFilter) {
+                    show = false;
+                }
+
+                if (startDate && itemDate < startDate) {
+                    show = false;
+                }
+
+                if (endDate && itemDate > endDate) {
+                    show = false;
+                }
+
+                item.style.display = show ? 'block' : 'none';
+            });
+        }
+    </script>
+}

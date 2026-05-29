@@ -1,0 +1,132 @@
+@model PetcareWebsite.ViewModels.AdminEmployeesViewModel
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Employees";
+    ViewData["AdminTitle"] = "Quản lý nhân viên";
+    ViewData["AdminSubtitle"] = "Quản lý bác sĩ và groomer có thể được phân công thực hiện lịch hẹn.";
+    var now = DateTime.Now;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/employees.css" asp-append-version="true" />
+}
+
+<div class="page-command">
+    <a class="btn-create" href="@Url.Action("CreateEmployee", "Admin")">
+        <i class="fas fa-user-plus"></i> Thêm nhân viên
+    </a>
+</div>
+
+<div class="employee-summary">
+    <a class="admin-panel summary-item" href="@Url.Action("Employees", "Admin")">
+        <span>Tất cả nhân viên</span><strong>@Model.TotalCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Employees", "Admin", new { status = "Active" })">
+        <span>Đang hoạt động</span><strong>@Model.ActiveCount</strong>
+    </a>
+    <a class="admin-panel summary-item" href="@Url.Action("Employees", "Admin", new { status = "Inactive" })">
+        <span>Tạm ngừng</span><strong>@Model.InactiveCount</strong>
+    </a>
+    <div class="admin-panel summary-item">
+        <span>Lịch sắp tới đã phân công</span><strong>@Model.AssignedUpcomingCount</strong>
+    </div>
+</div>
+
+<div class="admin-panel">
+    <form method="get" action="@Url.Action("Employees", "Admin")" class="filter-bar">
+        <input class="form-control" type="search" name="search" value="@Model.Search" placeholder="Tìm tên, số điện thoại hoặc vai trò nhân viên">
+        <select class="form-select role-filter" name="roleId">
+            <option value="">Tất cả vai trò</option>
+            @foreach (var role in Model.Roles)
+            {
+                <option value="@role.RoleId" selected="@(Model.RoleId == role.RoleId ? "selected" : null)">@role.RoleName</option>
+            }
+        </select>
+        <select class="form-select employee-status-filter" name="status">
+            <option value="">Tất cả trạng thái</option>
+            <option value="Active" selected="@(Model.Status == "Active" ? "selected" : null)">Đang hoạt động</option>
+            <option value="Inactive" selected="@(Model.Status == "Inactive" ? "selected" : null)">Tạm ngừng</option>
+        </select>
+        <button class="btn-filter" type="submit"><i class="fas fa-magnifying-glass me-2"></i>Lọc</button>
+        <a class="clear-link" href="@Url.Action("Employees", "Admin")">Xóa lọc</a>
+    </form>
+
+    @if (!Model.Employees.Any())
+    {
+        <div class="empty-state">
+            <i class="fas fa-user-doctor fs-2 mb-3 d-block"></i>
+            Không có nhân viên phù hợp.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table employee-table">
+                <thead>
+                    <tr>
+                        <th>Nhân viên</th>
+                        <th>Vai trò</th>
+                        <th>Tài khoản</th>
+                        <th>Lịch phân công</th>
+                        <th>Trạng thái</th>
+                        <th>Xử lý</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var employee in Model.Employees)
+                    {
+                        var isActive = employee.IsActive == true;
+                        var upcomingCount = employee.BookingDetailEmployees.Count(assignment =>
+                            assignment.BookingDetail.Booking.IsDeleted != true &&
+                            ((assignment.BookingDetail.Booking.BookingDate >= now &&
+                              (assignment.BookingDetail.Booking.StatusId == 1 ||
+                               assignment.BookingDetail.Booking.StatusId == 2)) ||
+                             assignment.BookingDetail.Booking.StatusId == 6));
+                        <tr>
+                            <td>
+                                <div class="employee-name">@employee.FullName</div>
+                                <div class="muted-line"><i class="fas fa-phone me-1"></i>@employee.PhoneNumber</div>
+                            </td>
+                            <td><span class="role-chip">@employee.Role.RoleName</span></td>
+                            <td>
+                                @if (employee.Account != null)
+                                {
+                                    <strong>@employee.Account.Username</strong>
+                                    <div class="muted-line">Có tài khoản đăng nhập</div>
+                                }
+                                else
+                                {
+                                    <span class="muted-line">Chưa cấp tài khoản</span>
+                                }
+                            </td>
+                            <td>
+                                <strong>@employee.BookingDetailEmployees.Count lịch</strong>
+                                <div class="muted-line">@upcomingCount lịch sắp tới</div>
+                            </td>
+                            <td>
+                                <span class="availability @(isActive ? "active" : "inactive")">
+                                    @(isActive ? "Đang hoạt động" : "Tạm ngừng")
+                                </span>
+                            </td>
+                            <td>
+                                <div class="actions">
+                                    <a class="action-link" href="@Url.Action("EditEmployee", "Admin", new { id = employee.EmployeeId })">
+                                        <i class="far fa-pen-to-square"></i> Sửa
+                                    </a>
+                                    <form method="post" action="@Url.Action("ToggleEmployeeStatus", "Admin")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="employeeId" value="@employee.EmployeeId">
+                                        <button class="toggle-button @(isActive ? "pause" : "resume")" type="submit">
+                                            @(isActive ? "Tạm ngừng" : "Mở lại")
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

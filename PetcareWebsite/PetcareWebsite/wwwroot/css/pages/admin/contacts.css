@@ -1,0 +1,159 @@
+.contact-summary {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .contact-summary a {
+            padding: 18px;
+            color: var(--admin-ink);
+            text-decoration: none;
+        }
+
+        .contact-summary span {
+            display: block;
+            color: var(--admin-muted);
+            font-size: 0.78rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .contact-summary strong {
+            font-size: 1.62rem;
+            font-weight: 900;
+        }
+
+        .filter-bar {
+            padding: 18px 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            border-bottom: 1px solid var(--admin-line);
+        }
+
+        .filter-bar .form-control,
+        .filter-bar .form-select {
+            min-height: 44px;
+            border-radius: 8px;
+            border-color: var(--admin-line);
+            font-weight: 600;
+        }
+
+        .filter-bar .form-control {
+            min-width: 290px;
+            flex: 1;
+        }
+
+        .btn-filter {
+            border: 0;
+            border-radius: 8px;
+            background: var(--admin-blue);
+            color: #fff;
+            padding: 0 18px;
+            height: 44px;
+            font-weight: 800;
+        }
+
+        .clear-link {
+            color: var(--admin-muted);
+            font-weight: 700;
+            text-decoration: none;
+            padding: 10px;
+        }
+
+        .message-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .message-item {
+            padding: 20px;
+            border-bottom: 1px solid #F3F4F6;
+            display: grid;
+            grid-template-columns: minmax(240px, 0.85fr) minmax(300px, 1.2fr) minmax(300px, 1fr);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .message-item:last-child {
+            border-bottom: none;
+        }
+
+        .customer-name {
+            font-size: 0.98rem;
+            font-weight: 900;
+            margin-bottom: 7px;
+        }
+
+        .contact-line {
+            color: var(--admin-muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+            line-height: 1.65;
+        }
+
+        .topic {
+            color: var(--admin-blue);
+            font-size: 0.82rem;
+            font-weight: 900;
+            margin-bottom: 9px;
+        }
+
+        .message-text {
+            color: #374151;
+            line-height: 1.65;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .message-action {
+            display: grid;
+            gap: 9px;
+        }
+
+        .message-action .form-select,
+        .message-action .form-control {
+            border: 1px solid var(--admin-line);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .message-action textarea {
+            min-height: 72px;
+            resize: vertical;
+        }
+
+        .save-btn {
+            border: 0;
+            background: var(--admin-blue);
+            color: #fff;
+            border-radius: 8px;
+            min-height: 40px;
+            font-weight: 800;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 54px;
+            color: var(--admin-muted);
+            font-weight: 700;
+        }
+
+        @media (max-width: 1180px) {
+            .message-item { grid-template-columns: 1fr; }
+            .contact-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        @media (max-width: 640px) {
+            .contact-summary { grid-template-columns: 1fr; }
+            .filter-bar .form-control { min-width: 100%; }
+        }
+.contact-status-filter {
+    max-width: 200px;
+}

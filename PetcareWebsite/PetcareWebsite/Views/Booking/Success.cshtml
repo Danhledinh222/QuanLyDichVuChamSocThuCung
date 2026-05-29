@@ -1,0 +1,88 @@
+@model PetcareWebsite.Models.Booking
+
+@{
+    ViewData["Title"] = "Chi tiết Lịch hẹn | PetCare";
+
+    // Hứng dữ liệu an toàn từ ViewBag do Controller truyền sang
+    var customer = Model.Customer;
+    var pet = ViewBag.Pet as PetcareWebsite.Models.Pet;
+    var service = ViewBag.Service as PetcareWebsite.Models.ServiceCatalog;
+    var invoice = ViewBag.Invoice as PetcareWebsite.Models.Invoice;
+    var payableAmount = (invoice?.TotalAmount ?? 0) - (invoice?.DiscountAmount ?? 0);
+
+    // Lấy phương thức thanh toán
+    var paymentMethod = TempData["PaymentMethod"] as string ?? "Tại quầy / Chuyển khoản";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/booking/success.css" asp-append-version="true" />
+}
+
+<div class="success-page-container">
+    <div class="container">
+        <div class="booking-detail-card">
+
+            <div class="booking-header">
+                <div class="success-icon"><i class="fas fa-check-circle"></i></div>
+                <h2 class="fw-bold mb-3 text-dark">Đặt lịch thành công!</h2>
+                <div class="booking-code-box">
+                    <i class="fas fa-ticket-alt me-2"></i> @Model.BookingCode
+                </div>
+                <p class="text-muted mt-3 mb-0">Sếp vui lòng lưu lại mã này hoặc đọc SĐT khi đến quầy nhé!</p>
+            </div>
+
+            <ul class="info-list">
+                <li>
+                    <span class="info-label"><i class="fas fa-user text-muted"></i> Khách hàng</span>
+                    <span class="info-value">@customer?.FullName <br><small class="text-muted fw-medium">@customer?.PhoneNumber</small></span>
+                </li>
+                <li>
+                    <span class="info-label"><i class="fas fa-paw text-muted"></i> Thú cưng</span>
+                    <span class="info-value">@pet?.Name <br><small class="text-muted fw-medium">@pet?.PetBreed?.BreedName (@pet?.Weight kg)</small></span>
+                </li>
+                <li>
+                    <span class="info-label"><i class="fas fa-cut text-muted"></i> Dịch vụ</span>
+                    <span class="info-value text-primary">@service?.ServiceName</span>
+                </li>
+                <li>
+                    <span class="info-label"><i class="fas fa-calendar-alt text-muted"></i> Ngày hẹn</span>
+                    <span class="info-value">@Model.BookingDate.ToString("dd/MM/yyyy")</span>
+                </li>
+                <li>
+                    <span class="info-label"><i class="fas fa-clock text-muted"></i> Giờ đón bé</span>
+                    <span class="info-value text-success fs-5">@Model.BookingDate.ToString("HH:mm")</span>
+                </li>
+                <li>
+                    <span class="info-label"><i class="fas fa-credit-card text-muted"></i> Thanh toán</span>
+                    <span class="info-value">@paymentMethod</span>
+                </li>
+                @if (invoice?.Promotion != null)
+                {
+                    <li>
+                        <span class="info-label"><i class="fas fa-tags text-muted"></i> Khuyến mãi</span>
+                        <span class="info-value text-success">@invoice.Promotion.PromoCode <br><small>- @((invoice.DiscountAmount ?? 0).ToString("N0")) đ</small></span>
+                    </li>
+                }
+                <li>
+                    <span class="info-label"><i class="fas fa-info-circle text-muted"></i> Trạng thái</span>
+                    <span class="info-value"><span class="status-badge"><i class="fas fa-hourglass-half me-1"></i> Chờ xác nhận</span></span>
+                </li>
+            </ul>
+
+            <div class="total-box">
+                <p class="total-label">Tổng thanh toán</p>
+                <p class="total-amount">@payableAmount.ToString("N0") đ</p>
+            </div>
+
+            <div class="d-flex gap-3 mt-5">
+                <button type="button" onclick="window.print()" class="btn btn-light btn-lg px-4 fw-bold flex-shrink-0 btn-print">
+                    <i class="fas fa-print"></i>
+                </button>
+                <a href="@Url.Action("Index", "Home")" class="btn btn-primary btn-lg w-100 fs-5 shadow-sm rounded-pill fw-bold">
+                    Về Trang Chủ <i class="fas fa-home ms-2"></i>
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>

@@ -1,0 +1,239 @@
+@model PetcareWebsite.ViewModels.AdminInvoicesViewModel
+@using System.Globalization
+
+@{
+    Layout = "~/Views/Shared/_AdminLayout.cshtml";
+    ViewData["ActiveAdminPage"] = "Invoices";
+    ViewData["AdminTitle"] = "Quản lý hóa đơn";
+    ViewData["AdminSubtitle"] = "Theo dõi công nợ và ghi nhận thanh toán cho các lịch hẹn hợp lệ.";
+}
+
+@functions {
+    private static string InvoiceStatusText(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "Thanh toán một phần",
+            3 => "Đã thanh toán",
+            _ => "Chưa thanh toán"
+        };
+    }
+
+    private static string InvoiceStatusClass(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "invoice-partial",
+            3 => "invoice-paid",
+            _ => "invoice-unpaid"
+        };
+    }
+
+    private static string BookingStatusText(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "Đã xác nhận",
+            3 => "Đã hoàn thành",
+            4 => "Đã hủy",
+            5 => "Đã hết hạn",
+            6 => "Đang thực hiện",
+            _ => "Chờ xác nhận"
+        };
+    }
+
+    private static string BookingStatusClass(int statusId)
+    {
+        return statusId switch
+        {
+            2 => "status-confirmed",
+            3 => "status-completed",
+            4 => "status-cancelled",
+            5 => "status-expired",
+            6 => "status-progress",
+            _ => "status-pending"
+        };
+    }
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/invoices.css" asp-append-version="true" />
+}
+
+<div class="invoice-summary">
+    <a class="admin-panel" href="@Url.Action("Invoices", "Admin")">
+        <span>Tất cả hóa đơn</span><strong>@Model.TotalCount</strong>
+    </a>
+    <a class="admin-panel" href="@Url.Action("Invoices", "Admin", new { statusId = 1 })">
+        <span>Chưa thanh toán</span><strong>@Model.UnpaidCount</strong>
+    </a>
+    <a class="admin-panel" href="@Url.Action("Invoices", "Admin", new { statusId = 2 })">
+        <span>Thanh toán một phần</span><strong>@Model.PartialCount</strong>
+    </a>
+    <a class="admin-panel" href="@Url.Action("Invoices", "Admin", new { statusId = 3 })">
+        <span>Đã thanh toán</span><strong>@Model.PaidCount</strong>
+    </a>
+    <div class="admin-panel outstanding">
+        <span>Dư nợ hóa đơn</span><strong>@Model.OutstandingAmount.ToString("N0") đ</strong>
+    </div>
+</div>
+
+<div class="admin-panel">
+    <form method="get" action="@Url.Action("Invoices", "Admin")" class="filter-bar">
+        <input class="form-control" type="search" name="search" value="@Model.Search" placeholder="Tìm mã hóa đơn, mã lịch, khách hàng hoặc số điện thoại">
+        <select class="form-select invoice-status-filter" name="statusId">
+            <option value="">Tất cả trạng thái</option>
+            <option value="1" selected="@(Model.StatusId == 1 ? "selected" : null)">Chưa thanh toán</option>
+            <option value="2" selected="@(Model.StatusId == 2 ? "selected" : null)">Thanh toán một phần</option>
+            <option value="3" selected="@(Model.StatusId == 3 ? "selected" : null)">Đã thanh toán</option>
+        </select>
+        <button class="btn-filter" type="submit"><i class="fas fa-magnifying-glass me-2"></i>Lọc</button>
+        <a class="clear-link" href="@Url.Action("Invoices", "Admin")">Xóa lọc</a>
+    </form>
+
+    @if (!Model.Invoices.Any())
+    {
+        <div class="empty-state">
+            <i class="fas fa-file-invoice-dollar fs-2 mb-3 d-block"></i>
+            Không có hóa đơn phù hợp.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table invoice-table">
+                <thead>
+                    <tr>
+                        <th>Hóa đơn</th>
+                        <th>Khách hàng</th>
+                        <th>Lịch hẹn</th>
+                        <th>Tổng tiền</th>
+                        <th>Khuyến mãi</th>
+                        <th>Đã thu / Còn thiếu</th>
+                        <th>Thanh toán</th>
+                        <th>Thu tiền</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var invoice in Model.Invoices)
+                    {
+                        var amountDue = (invoice.TotalAmount ?? 0) - (invoice.DiscountAmount ?? 0);
+                        var paidAmount = invoice.PaidAmount ?? 0;
+                        var remainingAmount = Math.Max(0, amountDue - paidAmount);
+                        var isClosedWithoutCollection = invoice.Booking.StatusId == 4 || invoice.Booking.StatusId == 5;
+                        var receivableAmount = isClosedWithoutCollection ? 0 : remainingAmount;
+                        var service = invoice.Booking.BookingDetails.FirstOrDefault()?.Service?.ServiceName ?? "Dịch vụ";
+                        var canCollect = receivableAmount > 0;
+                        var canChangePromotion = paidAmount <= 0 && !isClosedWithoutCollection;
+                        var invoiceDate = invoice.CreatedAt ?? DateTime.Now;
+                        var eligiblePromotions = Model.Promotions
+                            .Where(promotion =>
+                                promotion.StartDate <= invoiceDate &&
+                                promotion.EndDate >= invoiceDate &&
+                                (invoice.TotalAmount ?? 0) >= (promotion.MinOrderValue ?? 0))
+                            .ToList();
+
+                        <tr>
+                            <td>
+                                <div class="invoice-code">@invoice.InvoiceCode</div>
+                                <div class="muted-line">#@invoice.InvoiceId</div>
+                            </td>
+                            <td>
+                                <strong>@invoice.Booking.Customer.FullName</strong>
+                                <div class="muted-line">@invoice.Booking.Customer.PhoneNumber</div>
+                            </td>
+                            <td>
+                                <strong>@invoice.Booking.BookingCode</strong>
+                                <div class="muted-line">@service</div>
+                                <div class="muted-line">@invoice.Booking.BookingDate.ToString("dd/MM/yyyy HH:mm")</div>
+                                <span class="badge-soft @BookingStatusClass(invoice.Booking.StatusId)">@BookingStatusText(invoice.Booking.StatusId)</span>
+                            </td>
+                            <td>
+                                <span class="money">@amountDue.ToString("N0") đ</span>
+                                @if ((invoice.DiscountAmount ?? 0) > 0)
+                                {
+                                    <div class="muted-line">Trước giảm: @((invoice.TotalAmount ?? 0).ToString("N0")) đ</div>
+                                }
+                            </td>
+                            <td>
+                                @if (invoice.Promotion != null)
+                                {
+                                    <span class="promotion-code">@invoice.Promotion.PromoCode</span>
+                                    <div class="discount-line">- @((invoice.DiscountAmount ?? 0).ToString("N0")) đ</div>
+                                }
+                                @if (canChangePromotion && (eligiblePromotions.Any() || invoice.PromotionId.HasValue))
+                                {
+                                    <form class="promotion-form mt-2" method="post" action="@Url.Action("ApplyInvoicePromotion", "Admin")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="invoiceId" value="@invoice.InvoiceId">
+                                        <select name="promotionId" aria-label="Mã khuyến mãi">
+                                            <option value="">Không áp mã</option>
+                                            @foreach (var promotion in eligiblePromotions)
+                                            {
+                                                <option value="@promotion.PromotionId" selected="@(invoice.PromotionId == promotion.PromotionId ? "selected" : null)">@promotion.PromoCode</option>
+                                            }
+                                        </select>
+                                        <button type="submit">Cập nhật mã</button>
+                                    </form>
+                                }
+                                else if (canChangePromotion && !invoice.PromotionId.HasValue)
+                                {
+                                    <span class="closed-note">Không có mã phù hợp</span>
+                                }
+                                else if (!canChangePromotion && invoice.Promotion != null)
+                                {
+                                    <div class="muted-line">Đã khóa theo thanh toán</div>
+                                }
+                            </td>
+                            <td>
+                                <span class="money">@paidAmount.ToString("N0") đ</span>
+                                <span class="money due">@receivableAmount.ToString("N0") đ</span>
+                            </td>
+                            <td>
+                                @if (isClosedWithoutCollection && paidAmount <= 0)
+                                {
+                                    <span class="invoice-badge invoice-unpaid">Không thu</span>
+                                }
+                                else
+                                {
+                                    <span class="invoice-badge @InvoiceStatusClass(invoice.StatusId)">@InvoiceStatusText(invoice.StatusId)</span>
+                                }
+                                @if (invoice.Payments.Any())
+                                {
+                                    var latestPayment = invoice.Payments.OrderByDescending(payment => payment.PaymentDate).First();
+                                    <div class="muted-line">Gần nhất: @latestPayment.PaymentDate?.ToString("dd/MM HH:mm")</div>
+                                }
+                            </td>
+                            <td>
+                                @if (canCollect)
+                                {
+                                    <form class="collection-form" method="post" action="@Url.Action("RecordInvoicePayment", "Admin")">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="invoiceId" value="@invoice.InvoiceId">
+                                        <input type="number" name="amount" min="1" max="@remainingAmount.ToString(CultureInfo.InvariantCulture)" step="1" value="@remainingAmount.ToString(CultureInfo.InvariantCulture)" aria-label="Số tiền thu">
+                                        <select name="methodId" aria-label="Phương thức thanh toán">
+                                            @foreach (var method in Model.PaymentMethods)
+                                            {
+                                                <option value="@method.MethodId">@(method.MethodName == "Cash" ? "Tiền mặt" : method.MethodName == "Transfer" ? "Chuyển khoản" : "Thẻ")</option>
+                                            }
+                                        </select>
+                                        <input type="text" name="note" maxlength="255" placeholder="Ghi chú thanh toán">
+                                        <button type="submit"><i class="fas fa-check me-1"></i> Xác nhận thu</button>
+                                    </form>
+                                }
+                                else if (receivableAmount <= 0 && !isClosedWithoutCollection)
+                                {
+                                    <span class="closed-note">Đã thanh toán đủ</span>
+                                }
+                                else
+                                {
+                                    <span class="closed-note">Lịch đã hủy hoặc hết hạn.<br>Không thể thu tiền.</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
